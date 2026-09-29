@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\Siswa_ExportExcel;
+use App\Exports\Siswa_Template;
 use App\Imports\Siswa_Import;
 use App\Models\ActivityLog;
 use App\Models\aspek_penilaian;
@@ -22,12 +23,10 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
-/**
- * Manajemen data siswa terpusat.
- * CRUD, import/export, skoring, intervensi, dan laporan siswa.
- */
 class SiswaController extends Controller
 {
     public function index(Request $request)
@@ -36,7 +35,6 @@ class SiswaController extends Controller
         $jurusanList = jurusan::all();
         $query = siswa::with(['kelas.jurusan']);
 
-        // === Role 2: Guru BK — hanya kelas yang dipegang ===
         if ($user->role == '2') {
             $guruBk = guru_bk::where('username', $user->username)->first();
             if ($guruBk) {
@@ -53,7 +51,6 @@ class SiswaController extends Controller
             }
         }
 
-        // === Role 4: Ketua Program — hanya siswa dari jurusannya ===
         $ketua = null;
         if ($user->role == '4') {
             $ketua = ketua_program::where('username', $user->username)->first();
@@ -63,7 +60,6 @@ class SiswaController extends Controller
             $query->whereHas('kelas.jurusan', fn($q) => $q->where('id_jurusan', $ketua->id_jurusan));
         }
 
-        // === Role 3: Walikelas — hanya siswa dari kelasnya ===
         $wali = null;
         if ($user->role == '3') {
             $wali = walikelas::where('username', $user->username)->first();
@@ -73,7 +69,6 @@ class SiswaController extends Controller
             $query->where('id_kelas', $wali->id_kelas);
         }
 
-        // === Filter: search nama atau NIS ===
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -82,22 +77,18 @@ class SiswaController extends Controller
             });
         }
 
-        // === Filter: jurusan (skip untuk role 4 karena sudah di-filter otomatis) ===
         if ($request->filled('jurusan') && $user->role != '4') {
             $query->where('id_jurusan', $request->jurusan);
         }
 
-        // === Filter: kelas spesifik (skip untuk role 3 karena sudah di-filter otomatis) ===
         if ($request->filled('kelas') && $user->role != '3') {
             $query->where('id_kelas', $request->kelas);
         }
 
-        // === Filter: status siswa ===
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // === Dropdown kelas — disesuaikan per role, pakai variable yang sudah di-fetch ===
         if ($user->role == '4' && $ketua) {
             $kelasList = kelas::with('jurusan')
                 ->where('id_jurusan', $ketua->id_jurusan)
@@ -510,26 +501,56 @@ class SiswaController extends Controller
                 $query->where('id_kelas', $request->kelas);
             }
 
-            $siswa = $query->get();
+            $siswa = $query->orderBy('id_kelas')->orderBy('nama_siswa')->get();
 
             return Excel::download(new Siswa_ExportExcel($siswa), 'Data_Siswa.xlsx');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            Log::error('Export Excel siswa gagal: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', 'Gagal export Excel: ' . $e->getMessage());
         }
+    }
+
+    public function template()
+    {
+        $kelas = kelas::orderBy('id_kelas')->get();
+
+        return Excel::download(new Siswa_Template($kelas), 'Template_Import_Siswa.xlsx');
     }
 
     public function import(Request $request)
     {
         try {
             $request->validate([
-                'file' => 'required|mimes:xlsx,xls,csv|max:10240',
+                'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:10240',
+            ], [
+                'file.required' => 'Pilih file Excel terlebih dahulu.',
+                'file.mimes'    => 'Format file harus .xlsx, .xls, atau .csv.',
+                'file.max'      => 'Ukuran file maksimal 10MB.',
             ]);
 
-            Excel::import(new Siswa_Import, $request->file('file'));
+            $import = new Siswa_Import;
+            Excel::import($import, $request->file('file'));
 
-            return redirect()->back()->with('success', 'Data Siswa berhasil diimport!');
+            $redirect = redirect()->back();
+
+            if ($import->hasImported()) {
+                $redirect->with('success', 'Import selesai: ' . $import->summary());
+            } else {
+                $redirect->with('error', 'Tidak ada data yang diimport. ' . $import->summary());
+            }
+
+            if (!empty($import->errors)) {
+                $redirect->with('import_errors', $import->errors);
+            }
+
+            return $redirect;
+        } catch (ValidationException $e) {
+            return redirect()->back()->with('error', $e->validator->errors()->first());
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            Log::error('Import siswa gagal: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', 'Gagal import: ' . $e->getMessage());
         }
     }
 

@@ -67,6 +67,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/siswa/export_pdf', [SiswaController::class, 'exportPdf'])->name('siswa.export.pdf');
     Route::get('/siswa/export_excel', [SiswaController::class, 'exportExcel'])->name('siswa.export.excel');
+    Route::get('/siswa/template', [SiswaController::class, 'template'])->name('siswa.template');
     Route::post('/siswa/import', [SiswaController::class, 'import'])->name('siswa.import');
 
     Route::get('/penghargaan', [PenghargaanController::class, 'index'])->name('penghargaan.index');
