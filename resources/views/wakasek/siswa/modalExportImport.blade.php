@@ -1,7 +1,6 @@
 <div id="exportImportModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
     <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
         <div class="mt-3">
-            <!-- Modal Header -->
             <div class="flex items-center justify-between pb-3 border-b">
                 <h3 class="text-lg font-medium text-gray-900">Export/Import Data Siswa</h3>
                 <button id="closeExportImportBtn" class="text-gray-400 hover:text-gray-600">
@@ -12,9 +11,7 @@
                 </button>
             </div>
 
-            <!-- Modal Body -->
             <div class="mt-4">
-                <!-- Tab Navigation -->
                 <div class="flex border-b border-gray-200 mb-4">
                     <button id="exportTab"
                         class="tab-button px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">
@@ -26,10 +23,8 @@
                     </button>
                 </div>
 
-                <!-- Export Tab Content -->
                 <div id="exportContent" class="tab-content">
                     <div class="space-y-4">
-                        <!-- Jurusan Selection -->
                         <div class="w-full">
                             <label for="exportJurusan" class="block text-sm font-medium text-gray-700 mb-2">
                                 Pilih Jurusan
@@ -58,7 +53,6 @@
                             </div>
                         </div>
 
-                        <!-- Kelas Selection -->
                         <div class="w-full">
                             <label for="exportKelas" class="block text-sm font-medium text-gray-700 mb-2">
                                 Pilih Kelas
@@ -87,7 +81,6 @@
                             </div>
                         </div>
 
-                        <!-- Export Buttons -->
                         <div class="pt-3 border-t">
                             <h4 class="text-sm font-medium text-gray-700 mb-3">Pilih format export:</h4>
 
@@ -112,16 +105,20 @@
                     </div>
                 </div>
 
-                <!-- Import Tab Content -->
                 <div id="importContent" class="tab-content hidden">
                     <form id="importForm" action="{{ route('siswa.import') }}" method="POST"
                         enctype="multipart/form-data" class="space-y-4">
                         @csrf
                         <div class="space-y-4">
                             <div>
-                                <h4 class="text-sm font-medium text-gray-700 mb-3">Upload file untuk import data:</h4>
+                                <h4 class="text-sm font-medium text-gray-700 mb-2">Upload file untuk import data:</h4>
+                                <p class="text-xs text-gray-500 mb-3">
+                                    Kolom yang dibaca: <b>NIS</b>, <b>Nama Siswa</b>, <b>Id Kelas</b>.
+                                    NIS yang sudah terdaftar akan diperbarui. File hasil export bisa langsung diimport ulang.
+                                </p>
 
                                 <div
+                                    id="importDropZone"
                                     class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
                                     <input type="file" name="file" id="importFile" class="hidden"
                                         accept=".xlsx,.xls,.csv" onchange="handleFileSelect(this)">
@@ -169,7 +166,7 @@
                             </div>
 
                             <div class="pt-3 border-t">
-                                <a href="{{ asset('storage/template_siswa.xlsx') }}" download
+                                <a href="{{ route('siswa.template') }}"
                                     class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
                                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor"
                                         viewBox="0 0 24 24">
@@ -184,7 +181,6 @@
                 </div>
             </div>
 
-            <!-- Modal Footer -->
             <div class="flex items-center justify-end space-x-3 pt-4 border-t mt-6">
                 <button id="cancelExportImportBtn" type="button"
                     class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
@@ -224,12 +220,10 @@
     closeExportImportBtn.onclick = closeExportImportModal;
     cancelExportImportBtn.onclick = closeExportImportModal;
 
-    // Tutup modal jika klik di luar
     exportImportModal.addEventListener('click', function(e) {
         if (e.target === exportImportModal) closeExportImportModal();
     });
 
-    // Tab Switching
     exportTab.onclick = () => switchTab('export');
     importTab.onclick = () => switchTab('import');
 
@@ -278,7 +272,29 @@
         document.getElementById('processBtn').classList.add('hidden');
     }
 
-    // Filter Kelas berdasarkan Jurusan
+    const importDropZone = document.getElementById('importDropZone');
+    ['dragenter', 'dragover'].forEach(evt => importDropZone.addEventListener(evt, e => {
+        e.preventDefault();
+        importDropZone.classList.add('border-blue-400', 'bg-blue-50');
+    }));
+    ['dragleave', 'drop'].forEach(evt => importDropZone.addEventListener(evt, e => {
+        e.preventDefault();
+        importDropZone.classList.remove('border-blue-400', 'bg-blue-50');
+    }));
+    importDropZone.addEventListener('drop', e => {
+        const input = document.getElementById('importFile');
+        if (e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            handleFileSelect(input);
+        }
+    });
+
+    document.getElementById('importForm').addEventListener('submit', function() {
+        processBtn.disabled = true;
+        processBtn.classList.add('opacity-60', 'cursor-not-allowed');
+        processBtn.textContent = 'Memproses...';
+    });
+
     document.getElementById('exportJurusan').addEventListener('change', function() {
         const selectedJurusan = this.value;
         const kelasOptions = document.querySelectorAll('#exportKelas option');
@@ -290,7 +306,6 @@
         document.getElementById('exportKelas').value = '';
     });
 
-    // Export Handlers
     document.getElementById('exportExcelBtn').addEventListener('click', () => {
         const jurusan = document.getElementById('exportJurusan').value;
         const kelas = document.getElementById('exportKelas').value;

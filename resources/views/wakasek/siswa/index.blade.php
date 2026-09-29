@@ -1,4 +1,4 @@
-    @extends('layouts.wakasek.app')
+@extends('layouts.wakasek.app')
 
     @push('css')
         <link rel="stylesheet" href="{{ asset('css/wakasek/siswa.css') }}">
@@ -46,7 +46,23 @@
                 </div>
             @endif
 
-            <!-- Search and Filter -->
+            @if (session('import_errors'))
+                <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg">
+                    <p class="text-sm font-semibold flex items-center gap-2">
+                        <i class="bi bi-info-circle-fill text-yellow-600"></i>
+                        Baris yang dilewati saat import ({{ count(session('import_errors')) }}):
+                    </p>
+                    <ul class="mt-2 text-sm list-disc list-inside space-y-0.5 max-h-40 overflow-y-auto">
+                        @foreach (array_slice(session('import_errors'), 0, 50) as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
+                    @if (count(session('import_errors')) > 50)
+                        <p class="mt-1 text-xs">...dan {{ count(session('import_errors')) - 50 }} baris lainnya.</p>
+                    @endif
+                </div>
+            @endif
+
             <div class="py-4">
                 <div class="bg-white p-6 rounded-xl shadow-sm border px-4">
                     <div class="flex flex-col md:flex-row gap-2 items-center justify-between">
@@ -90,8 +106,6 @@
             </div>
 
 
-
-            <!-- Data Table -->
 
             <div class="bg-white rounded-xl shadow-sm border overflow-visible mt-6">
                 <div class="px-6 py-4 border-b border-gray-200">
