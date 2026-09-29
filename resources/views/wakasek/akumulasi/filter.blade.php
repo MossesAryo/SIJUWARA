@@ -23,19 +23,19 @@
         <!-- Form -->
         <form method="GET" action="{{ route('akumulasi.index') }}" class="p-6 space-y-6">
             @if (auth()->user()->role == 1 || auth()->user()->role == 2)
-                <!-- Jurusan -->
+                <!-- Program / Kompetensi Keahlian -->
                 <div class="space-y-2">
                     <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
                         <i class="bi bi-buildings text-gray-500"></i>
-                        Jurusan
+                        Program / Kompetensi Keahlian
                     </label>
                     <select id="jurusan" name="jurusan"
                         class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200">
-                        <option value="">-- Pilih Jurusan --</option>
+                        <option value="">-- Pilih Program / Kompetensi Keahlian --</option>
                         @foreach ($jurusanList as $jurusan)
                             <option value="{{ $jurusan->id_jurusan }}"
                                 {{ request('jurusan') == $jurusan->id_jurusan ? 'selected' : '' }}>
-                                {{ $jurusan->id_jurusan }}
+                                {{ $jurusan->label_dropdown }}
                             </option>
                         @endforeach
                     </select>
@@ -47,20 +47,20 @@
                 <div class="space-y-2">
                     <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
                         <i class="bi bi-buildings text-gray-500"></i>
-                        Jurusan
+                        Program / Kompetensi Keahlian
                     </label>
                     <select name="jurusan"
                         class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200">
                         @foreach ($jurusanList as $jur)
-                            <option value="{{ $jur }}" @if (($jurusanKetua ?? null) == $jur) selected @endif
-                                @if (request('jurusan') == $jur) selected @endif>
-                                {{ $jur }}
+                            <option value="{{ $jur->id_jurusan }}"
+                                @if (request('jurusan') == $jur->id_jurusan || (($jurusanKetua ?? null) == $jur->id_jurusan && !request('jurusan'))) selected @endif>
+                                {{ $jur->label_dropdown }}
                             </option>
                         @endforeach
-
                     </select>
-
+                </div>
             @endif
+
             <!-- Kelas -->
             <div class="space-y-2">
                 <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -110,23 +110,30 @@
         window.location.href = "{{ route('akumulasi.index') }}";
     }
 
-    // Filter kelas sesuai jurusan
-    document.getElementById('jurusan').addEventListener('change', function() {
-        let selectedJurusan = this.value;
-        let kelasOptions = document.querySelectorAll('#kelas option');
+    // Filter kelas sesuai jurusan (hanya kalau dropdown jurusan ada, yaitu role 1 dan 2)
+    const jurusanEl = document.getElementById('jurusan');
 
-        kelasOptions.forEach(option => {
-            if (option.value === "") return; // skip default
-            option.style.display = option.getAttribute('data-jurusan') === selectedJurusan ? 'block' :
-                'none';
+    if (jurusanEl) {
+        jurusanEl.addEventListener('change', function() {
+            const selectedJurusan = this.value;
+            const kelasOptions = document.querySelectorAll('#kelas option');
+
+            kelasOptions.forEach(option => {
+                if (option.value === "") return; // skip default
+                option.style.display = (!selectedJurusan || option.getAttribute('data-jurusan') === selectedJurusan) ?
+                    'block' : 'none';
+            });
+
+            // reset pilihan kelas hanya kalau jurusan diganti oleh user
+            if (this.dataset.ready === '1') {
+                document.getElementById('kelas').value = "";
+            }
         });
 
-        // reset pilihan kelas
-        document.getElementById('kelas').value = "";
-    });
-
-    // trigger saat load (biar langsung filter kalau ada request sebelumnya)
-    document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('jurusan').dispatchEvent(new Event('change'));
-    });
+        // trigger saat load supaya daftar kelas langsung terfilter
+        document.addEventListener('DOMContentLoaded', function() {
+            jurusanEl.dispatchEvent(new Event('change'));
+            jurusanEl.dataset.ready = '1';
+        });
+    }
 </script>

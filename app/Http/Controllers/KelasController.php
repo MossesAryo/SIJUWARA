@@ -9,10 +9,14 @@ use App\Models\walikelas;
 use Illuminate\Http\Request;
 use App\Models\ketua_program;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Manajemen data kelas beserta jurusan.
  * CRUD kelas, impor/ekspor, dan relasi wali atau guru BK.
+ *
+ * Kelas X = Program Keahlian, kelas XI/XII = Kompetensi Keahlian
+ * (lihat konstanta di model kelas).
  */
 class KelasController extends Controller
 {
@@ -59,12 +63,12 @@ class KelasController extends Controller
 
         // Filter jurusan (skip untuk role 4 karena sudah di-filter otomatis)
         if ($request->filled('jurusan') && (!$user || $user->role != '4')) {
-            $query->whereIn('id_jurusan', $request->jurusan);
+            $query->whereIn('id_jurusan', (array) $request->jurusan);
         }
 
         if ($request->filled('tingkat')) {
             $query->where(function ($q) use ($request) {
-                foreach ($request->tingkat as $tingkat) {
+                foreach ((array) $request->tingkat as $tingkat) {
                     switch ($tingkat) {
                         case 'X':
                             $q->orWhere('nama_kelas', 'REGEXP', '^X ');
@@ -99,6 +103,14 @@ class KelasController extends Controller
                     break;
                 case 'nama_kelas_desc':
                     $query->orderBy('nama_kelas', 'desc');
+                    break;
+                case 'jurusan_asc':
+                    $query->orderBy('id_jurusan', 'asc')
+                        ->orderBy('nama_kelas', 'asc');
+                    break;
+                case 'jurusan_desc':
+                    $query->orderBy('id_jurusan', 'desc')
+                        ->orderBy('nama_kelas', 'asc');
                     break;
                 case 'tingkat_asc':
                     $query->orderByRaw("CASE
@@ -167,22 +179,36 @@ class KelasController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Data kelas berhasil diambil',
-            'data'    => $query->get()
+            'data'    => $query->get()->each->append(['tingkat', 'label_keahlian', 'kode_keahlian']),
         ]);
     }
 
     public function store(Request $request)
     {
         try {
-        $request->validate([
-            'id_kelas'   => 'required',
-            'nama_kelas' => 'required',
-            'id_jurusan' => 'required',
-        ]);
+            $data = $request->validate([
+                'id_kelas'   => 'required|string|unique:kelas,id_kelas',
+                'nama_kelas' => 'required|string',
+                'id_jurusan' => 'required|exists:jurusan,id_jurusan',
+            ], [
+                'required'          => ':attribute wajib diisi.',
+                'id_kelas.unique'   => 'ID kelas sudah dipakai.',
+                'id_jurusan.exists' => 'Jurusan tidak valid.',
+            ]);
 
-        kelas::create($request->all());
+            $data['id_kelas']   = strtoupper(trim($data['id_kelas']));
+            $data['nama_kelas'] = kelas::normalisasiNama($data['nama_kelas']);
 
-        return redirect()->route('kelas')->with('success', 'Kelas berhasil ditambahkan');
+            if ($error = kelas::validasiNama($data['nama_kelas'], $data['id_jurusan'])) {
+                return redirect()->back()->withInput()->with('error', $error);
+            }
+
+            kelas::create($data);
+
+            return redirect()->route('kelas')->with('success', 'Kelas berhasil ditambahkan');
+        } catch (ValidationException $e) {
+            return redirect()->back()->withInput()
+                ->with('error', collect($e->errors())->flatten()->first());
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
@@ -191,15 +217,27 @@ class KelasController extends Controller
     public function update(Request $request, string $id)
     {
         try {
-        $data = $request->validate([
-            'id_kelas'   => 'required',
-            'nama_kelas' => 'required',
-            'id_jurusan' => 'required',
-        ]);
+            // id_kelas tidak boleh berubah (dipakai proses naik kelas), jadi tidak diupdate
+            $data = $request->validate([
+                'nama_kelas' => 'required|string',
+                'id_jurusan' => 'required|exists:jurusan,id_jurusan',
+            ], [
+                'required'          => ':attribute wajib diisi.',
+                'id_jurusan.exists' => 'Jurusan tidak valid.',
+            ]);
 
-        kelas::where('id_kelas', $id)->update($data);
+            $data['nama_kelas'] = kelas::normalisasiNama($data['nama_kelas']);
 
-        return redirect()->route('kelas')->with('success', 'Kelas berhasil diedit');
+            if ($error = kelas::validasiNama($data['nama_kelas'], $data['id_jurusan'])) {
+                return redirect()->back()->withInput()->with('error', $error);
+            }
+
+            kelas::where('id_kelas', $id)->update($data);
+
+            return redirect()->route('kelas')->with('success', 'Kelas berhasil diedit');
+        } catch (ValidationException $e) {
+            return redirect()->back()->withInput()
+                ->with('error', collect($e->errors())->flatten()->first());
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
@@ -208,9 +246,9 @@ class KelasController extends Controller
     public function destroy(string $id)
     {
         try {
-        kelas::where('id_kelas', $id)->delete();
+            kelas::where('id_kelas', $id)->delete();
 
-        return redirect()->route('kelas')->with('success', 'Kelas berhasil dihapus');
+            return redirect()->route('kelas')->with('success', 'Kelas berhasil dihapus');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }

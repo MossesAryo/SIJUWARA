@@ -13,7 +13,7 @@ class Siswa_Import implements ToCollection
     private const HEADER_ALIASES = [
         'nis'   => ['nis', 'nomorinduksiswa', 'nomorinduk'],
         'nama'  => ['namasiswa', 'nama', 'namalengkap'],
-        'kelas' => ['idkelas', 'kelas', 'kodekelas'],
+        'kelas' => ['idkelas', 'kelas', 'kodekelas', 'namakelas'],
     ];
 
     private const HEADER_SCAN_ROWS = 10;
@@ -25,6 +25,9 @@ class Siswa_Import implements ToCollection
 
     /** @var string[] */
     public array $errors = [];
+
+    /** Key kelas yang cocok ke lebih dari satu kelas (tidak bisa dipastikan) */
+    private array $kelasAmbigu = [];
 
     public function collection(Collection $rows)
     {
@@ -43,8 +46,8 @@ class Siswa_Import implements ToCollection
             $barisExcel = $index + 1;
             $row = $row->toArray();
 
-            $nisRaw  = $row[$map['nis']] ?? null;
-            $namaRaw = $row[$map['nama']] ?? null;
+            $nisRaw   = $row[$map['nis']] ?? null;
+            $namaRaw  = $row[$map['nama']] ?? null;
             $kelasRaw = $row[$map['kelas']] ?? null;
 
             if ($this->isBlank($nisRaw) && $this->isBlank($namaRaw) && $this->isBlank($kelasRaw)) {
@@ -74,14 +77,30 @@ class Siswa_Import implements ToCollection
                 continue;
             }
 
-            $kelasKey = mb_strtolower(trim((string) $kelasRaw));
+            // Spasi, tanda hubung, dan huruf besar/kecil diabaikan:
+            // "X PPLG 1" == "x-pplg-1" == "XPPLG1"
+            $kelasKey = $this->normalizeHeader($kelasRaw);
             if ($kelasKey === '') {
                 $this->fail($barisExcel, "Kelas kosong (NIS $nis)");
                 continue;
             }
+
+            $kelasTeks = trim((string) $kelasRaw);
             $kelas = $kelasMap[$kelasKey] ?? null;
+
             if (!$kelas) {
-                $this->fail($barisExcel, "Kelas '" . trim((string) $kelasRaw) . "' tidak ditemukan (NIS $nis)");
+                if (isset($this->kelasAmbigu[$kelasKey])) {
+                    $this->fail(
+                        $barisExcel,
+                        "Kelas '$kelasTeks' cocok dengan lebih dari satu kelas, pakai Id Kelas (NIS $nis)"
+                    );
+                } else {
+                    $this->fail(
+                        $barisExcel,
+                        "Kelas '$kelasTeks' tidak ditemukan, pakai Id Kelas atau nama seperti "
+                        . "'X PPLG 1' / 'XI RPL 1' (NIS $nis)"
+                    );
+                }
                 continue;
             }
 
@@ -184,24 +203,91 @@ class Siswa_Import implements ToCollection
         return [['nis' => 1, 'nama' => 2, 'kelas' => 3], 2];
     }
 
+    /** Huruf kecil, hanya a-z dan 0-9. Dipakai untuk header dan nama kelas. */
     private function normalizeHeader($value): string
     {
         return preg_replace('/[^a-z0-9]/', '', mb_strtolower(trim((string) $value)));
     }
 
+    /**
+     * Peta key => kelas. Prioritas:
+     *  1. id_kelas persis        (X-RPL-1)
+     *  2. nama_kelas persis      (X PPLG 1)
+     *  3. alias tingkat+kode+no  (X RPL 1 lama, X PPLG 1, XI RPL 1, XI PPLG 1, ...)
+     * Key yang ambigu di satu tingkat prioritas dilewati dan dicatat di $kelasAmbigu.
+     */
     private function buildKelasMap(): array
     {
-        $all = kelas::all();
-        $map = [];
+        $byId = $byNama = $byAlias = [];
+        $ambNama = $ambAlias = [];
 
-        foreach ($all as $k) {
-            $map[mb_strtolower(trim($k->nama_kelas))] = $k;
-        }
-        foreach ($all as $k) {
-            $map[mb_strtolower(trim($k->id_kelas))] = $k;
+        foreach (kelas::all() as $k) {
+            $byId[$this->normalizeHeader($k->id_kelas)] = $k;
+
+            $this->daftarkan($byNama, $ambNama, $this->normalizeHeader($k->nama_kelas), $k);
+
+            foreach ($this->aliasKelas($k) as $alias) {
+                $this->daftarkan($byAlias, $ambAlias, $alias, $k);
+            }
         }
 
-        return $map;
+        $final = $byId;
+
+        foreach ([[$byNama, $ambNama], [$byAlias, $ambAlias]] as [$tier, $amb]) {
+            foreach ($tier as $key => $k) {
+                if (!isset($final[$key]) && !isset($amb[$key])) {
+                    $final[$key] = $k;
+                }
+            }
+        }
+
+        $this->kelasAmbigu = [];
+        foreach ($ambNama + $ambAlias as $key => $_) {
+            if (!isset($final[$key])) {
+                $this->kelasAmbigu[$key] = true;
+            }
+        }
+
+        return $final;
+    }
+
+    private function daftarkan(array &$tier, array &$ambigu, string $key, $k): void
+    {
+        if ($key === '') {
+            return;
+        }
+
+        if (isset($tier[$key]) && $tier[$key]->id_kelas !== $k->id_kelas) {
+            $ambigu[$key] = true;
+            return;
+        }
+
+        $tier[$key] = $k;
+    }
+
+    /**
+     * Alias dari id_kelas "X-RPL-1" + jurusan:
+     * tingkat + (kode di id, kode program, kode kompetensi) + nomor.
+     */
+    private function aliasKelas($k): array
+    {
+        if (!preg_match('/^(XII|XI|X)-([^-]+)-(\d+)$/i', trim((string) $k->id_kelas), $m)) {
+            return [];
+        }
+
+        $tingkat = strtoupper($m[1]);
+        $nomor   = $m[3];
+
+        $kodeList = array_unique(array_filter([
+            strtoupper($m[2]),
+            kelas::PROGRAM_KEAHLIAN[$k->id_jurusan] ?? null,
+            kelas::KOMPETENSI_KEAHLIAN[$k->id_jurusan] ?? null,
+        ]));
+
+        return array_map(
+            fn ($kode) => $this->normalizeHeader($tingkat . $kode . $nomor),
+            $kodeList
+        );
     }
 
     private function cleanNis($value): ?string

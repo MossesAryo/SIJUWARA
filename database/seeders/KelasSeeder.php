@@ -2,134 +2,63 @@
 
 namespace Database\Seeders;
 
+use App\Models\kelas;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
 class KelasSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     *
+     * Kelas X      => Program Keahlian    (AKL, MPLB, PM, PPLG, DKV, TJKT)
+     * Kelas XI/XII => Kompetensi Keahlian (AK, MP, MLOG, RPL, TKJ, BR, DKV)
+     *
+     * id_kelas memakai kode kompetensi di semua tingkat (X-RPL-1, XI-RPL-1, ...)
+     * supaya proses naik kelas (ganti awalan tingkat) tetap jalan.
+     * nama_kelas memakai kode sesuai tingkat (X PPLG 1, XI RPL 1, ...).
      */
     public function run(): void
     {
-        $data = [
-
-            ['id_kelas' => 'X-RPL-1', 'nama_kelas' => 'X RPL 1', 'id_jurusan' => 'RPL'],
-            ['id_kelas' => 'X-RPL-2', 'nama_kelas' => 'X RPL 2', 'id_jurusan' => 'RPL'],
-
-
-            ['id_kelas' => 'XI-RPL-1', 'nama_kelas' => 'XI RPL 1', 'id_jurusan' => 'RPL'],
-            ['id_kelas' => 'XI-RPL-2', 'nama_kelas' => 'XI RPL 2', 'id_jurusan' => 'RPL'],
-
-
-            ['id_kelas' => 'XII-RPL-1', 'nama_kelas' => 'XII RPL 1', 'id_jurusan' => 'RPL'],
-            ['id_kelas' => 'XII-RPL-2', 'nama_kelas' => 'XII RPL 2', 'id_jurusan' => 'RPL'],
-
-
-
-            ['id_kelas' => 'X-BR-1', 'nama_kelas' => 'X BR 1', 'id_jurusan' => 'PM'],
-            ['id_kelas' => 'X-BR-2', 'nama_kelas' => 'X BR 2', 'id_jurusan' => 'PM'],
-            ['id_kelas' => 'X-BR-3', 'nama_kelas' => 'X BR 3', 'id_jurusan' => 'PM'],
-
-
-            ['id_kelas' => 'XI-BR-1', 'nama_kelas' => 'XI BR 1', 'id_jurusan' => 'PM'],
-            ['id_kelas' => 'XI-BR-2', 'nama_kelas' => 'XI BR 2', 'id_jurusan' => 'PM'],
-            ['id_kelas' => 'XI-BR-3', 'nama_kelas' => 'XI BR 3', 'id_jurusan' => 'PM'],
-
-
-            ['id_kelas' => 'XII-BR-1', 'nama_kelas' => 'XII BR 1', 'id_jurusan' => 'PM'],
-            ['id_kelas' => 'XII-BR-2', 'nama_kelas' => 'XII BR 2', 'id_jurusan' => 'PM'],
-            ['id_kelas' => 'XII-BR-3', 'nama_kelas' => 'XII BR 3', 'id_jurusan' => 'PM'],
- 
-
-
-            ['id_kelas' => 'X-AK-1', 'nama_kelas' => 'X AK 1', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'X-AK-2', 'nama_kelas' => 'X AK 2', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'X-AK-3', 'nama_kelas' => 'X AK 3', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'X-AK-4', 'nama_kelas' => 'X AK 4', 'id_jurusan' => 'AK'],
-
-
-            ['id_kelas' => 'XI-AK-1', 'nama_kelas' => 'XI AK 1', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'XI-AK-2', 'nama_kelas' => 'XI AK 2', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'XI-AK-3', 'nama_kelas' => 'XI AK 3', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'XI-AK-4', 'nama_kelas' => 'XI AK 3', 'id_jurusan' => 'AK'],
-
-
-            ['id_kelas' => 'XII-AK-1', 'nama_kelas' => 'XII AK 1', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'XII-AK-2', 'nama_kelas' => 'XII AK 2', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'XII-AK-3', 'nama_kelas' => 'XII AK 3', 'id_jurusan' => 'AK'],
-            ['id_kelas' => 'XII-AK-4', 'nama_kelas' => 'XII AK 4', 'id_jurusan' => 'AK'],
-
-
-
-            ['id_kelas' => 'X-TKJ-1', 'nama_kelas' => 'X TKJ 1', 'id_jurusan' => 'TKJ'],
-            ['id_kelas' => 'X-TKJ-2', 'nama_kelas' => 'X TKJ 2', 'id_jurusan' => 'TKJ'],
-
-            // XI TKJ
-            ['id_kelas' => 'XI-TKJ-1', 'nama_kelas' => 'XI TKJ 1', 'id_jurusan' => 'TKJ'],
-            ['id_kelas' => 'XI-TKJ-2', 'nama_kelas' => 'XI TKJ 2', 'id_jurusan' => 'TKJ'],
-
-            // XII TKJ
-            ['id_kelas' => 'XII-TKJ-1', 'nama_kelas' => 'XII TKJ 1', 'id_jurusan' => 'TKJ'],
-            ['id_kelas' => 'XII-TKJ-2', 'nama_kelas' => 'XII TKJ 2', 'id_jurusan' => 'TKJ'],
-
-
-            // X DKV
-            ['id_kelas' => 'X-DKV-1', 'nama_kelas' => 'X DKV 1', 'id_jurusan' => 'DKV'],
-            ['id_kelas' => 'X-DKV-2', 'nama_kelas' => 'X DKV 2', 'id_jurusan' => 'DKV'],
-
-            // XI DKV
-            ['id_kelas' => 'XI-DKV-1', 'nama_kelas' => 'XI DKV 1', 'id_jurusan' => 'DKV'],
-            ['id_kelas' => 'XI-DKV-2', 'nama_kelas' => 'XI DKV 2', 'id_jurusan' => 'DKV'],
-
-            // XII DKV
-            ['id_kelas' => 'XII-DKV-1', 'nama_kelas' => 'XII DKV 1', 'id_jurusan' => 'DKV'],
-            ['id_kelas' => 'XII-DKV-2', 'nama_kelas' => 'XII DKV 2', 'id_jurusan' => 'DKV'],
-
-
-            // X MLOG
-            ['id_kelas' => 'X-MLOG-1', 'nama_kelas' => 'X MLOG 1', 'id_jurusan' => 'MLOG'],
-            ['id_kelas' => 'X-MLOG-2', 'nama_kelas' => 'X MLOG 2', 'id_jurusan' => 'MLOG'],
-            ['id_kelas' => 'X-MLOG-3', 'nama_kelas' => 'X MLOG 3', 'id_jurusan' => 'MLOG'],
-
-            // XI MLOG
-            ['id_kelas' => 'XI-MLOG-1', 'nama_kelas' => 'XI MLOG 1', 'id_jurusan' => 'MLOG'],
-            ['id_kelas' => 'XI-MLOG-2', 'nama_kelas' => 'XI MLOG 2', 'id_jurusan' => 'MLOG'],
-            ['id_kelas' => 'XI-MLOG-3', 'nama_kelas' => 'XI MLOG 3', 'id_jurusan' => 'MLOG'],
-
-            // XII MLOG
-            ['id_kelas' => 'XII-MLOG-1', 'nama_kelas' => 'XII MLOG 1', 'id_jurusan' => 'MLOG'],
-            ['id_kelas' => 'XII-MLOG-2', 'nama_kelas' => 'XII MLOG 2', 'id_jurusan' => 'MLOG'],
-            ['id_kelas' => 'XII-MLOG-3', 'nama_kelas' => 'XII MLOG 3', 'id_jurusan' => 'MLOG'],
-
-
-            // X MP
-            ['id_kelas' => 'X-MP-1', 'nama_kelas' => 'X MP 1', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'X-MP-2', 'nama_kelas' => 'X MP 2', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'X-MP-3', 'nama_kelas' => 'X MP 3', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'X-MP-4', 'nama_kelas' => 'X MP 3', 'id_jurusan' => 'MP'],
-
-            // XI MP
-            ['id_kelas' => 'XI-MP-1', 'nama_kelas' => 'XI MP 1', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'XI-MP-2', 'nama_kelas' => 'XI MP 2', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'XI-MP-3', 'nama_kelas' => 'XI MP 3', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'XI-MP-4', 'nama_kelas' => 'XI MP 4', 'id_jurusan' => 'MP'],
-
-
-            ['id_kelas' => 'XII-MP-1', 'nama_kelas' => 'XII MP 1', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'XII-MP-2', 'nama_kelas' => 'XII MP 2', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'XII-MP-3', 'nama_kelas' => 'XII MP 3', 'id_jurusan' => 'MP'],
-            ['id_kelas' => 'XII-MP-4', 'nama_kelas' => 'XII MP 4', 'id_jurusan' => 'MP'],
-
-            ['id_kelas' => 'ALUMNI', 'nama_kelas' => 'ALUMNI', 'id_jurusan' => null],
+        // [id_jurusan, jumlah rombel X, XI, XII]
+        $daftar = [
+            ['RPL',  2, 2, 2],
+            ['PM',   3, 3, 3],
+            ['AK',   4, 4, 4],
+            ['TKJ',  2, 2, 2],
+            ['DKV',  2, 2, 2],
+            ['MLOG', 0, 3, 3], // belum ada kelas X MLOG
+            ['MP',   4, 4, 4],
         ];
 
-        foreach ($data as $kelas) {
-            DB::table('kelas')->insert(array_merge($kelas, [
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]));
+        $now  = now();
+        $rows = [];
+
+        foreach ($daftar as [$idJurusan, $jmlX, $jmlXI, $jmlXII]) {
+            foreach (['X' => $jmlX, 'XI' => $jmlXI, 'XII' => $jmlXII] as $tingkat => $jumlah) {
+                $kodeNama = kelas::kodeKeahlian($idJurusan, $tingkat);   // PPLG / RPL / dst
+                $kodeId   = kelas::kodeKeahlian($idJurusan, 'XI');       // RPL / BR / dst
+
+                for ($n = 1; $n <= $jumlah; $n++) {
+                    $rows[] = [
+                        'id_kelas'   => "{$tingkat}-{$kodeId}-{$n}",
+                        'nama_kelas' => "{$tingkat} {$kodeNama} {$n}",
+                        'id_jurusan' => $idJurusan,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
         }
+
+        $rows[] = [
+            'id_kelas'   => 'ALUMNI',
+            'nama_kelas' => 'ALUMNI',
+            'id_jurusan' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        DB::table('kelas')->insert($rows);
     }
 }

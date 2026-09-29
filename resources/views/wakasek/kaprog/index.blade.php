@@ -101,7 +101,7 @@
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2">
                                     <i class="bi bi-shield-check text-gray-400"></i>
-                                    Jurusan
+                                    Program / Kompetensi Keahlian
                                 </div>
                             </th>
                             <th class="px-5 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -133,7 +133,8 @@
                                 </td>
 
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="text-lg font-bold text-black">{{ $item->id_jurusan }}</span>
+                                    <div class="text-sm font-bold text-black">{{ optional($item->jurusan)->nama_jurusan ?? $item->id_jurusan }}</div>
+                                    <div class="text-xs text-gray-500">{{ optional($item->jurusan)->ringkasan_kode }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center gap-1">

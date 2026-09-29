@@ -193,17 +193,25 @@
                             @php
                                 $isAlumni = $siswa->status == 'alumni';
 
-                                $kelasLabel = $isAlumni ? 'Jurusan' : 'Kelas';
-
-                                $kelasValue = $isAlumni
-                                    ? $siswa->jurusan?->id_jurusan ?? 'Alumni'
-                                    : $siswa->kelas?->nama_kelas ?? '-';
+                                // Alumni dianggap lulusan kelas XII (Kompetensi Keahlian)
+                                $tingkatSiswa  = $isAlumni ? 'XII' : $siswa->kelas?->tingkat;
+                                $labelKeahlian = \App\Models\kelas::labelKeahlian($tingkatSiswa);
+                                $kodeKeahlian  = \App\Models\kelas::kodeKeahlian($siswa->id_jurusan, $tingkatSiswa) ?? '-';
 
                                 $studentInfo = [
                                     ['label' => 'NIS', 'value' => $siswa->nis],
                                     ['label' => 'Nama Lengkap', 'value' => $siswa->nama_siswa],
-                                    ['label' => $kelasLabel, 'value' => $kelasValue],
                                 ];
+
+                                if ($isAlumni) {
+                                    $studentInfo[] = [
+                                        'label' => $labelKeahlian,
+                                        'value' => $kodeKeahlian !== '-' ? $kodeKeahlian : 'Alumni',
+                                    ];
+                                } else {
+                                    $studentInfo[] = ['label' => 'Kelas', 'value' => $siswa->kelas?->nama_kelas ?? '-'];
+                                    $studentInfo[] = ['label' => $labelKeahlian, 'value' => $kodeKeahlian];
+                                }
 
                                 // hanya tampilkan walikelas jika bukan alumni
                                 if (!$isAlumni) {

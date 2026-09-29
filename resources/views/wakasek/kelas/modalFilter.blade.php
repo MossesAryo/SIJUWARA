@@ -22,55 +22,27 @@
         <form id="form-filter" method="GET" action="{{ route('kelas') }}">
             <div class="px-6 py-6 space-y-6">
                 
-                <!-- Filter Jurusan -->
+                <!-- Filter Program / Kompetensi Keahlian -->
                 <div class="space-y-3">
                     <label class="block text-sm font-semibold text-gray-700">
                         <i class="bi bi-mortarboard mr-2 text-blue-600"></i>
-                        Jurusan
+                        Program / Kompetensi Keahlian
                     </label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" name="jurusan[]" value="RPL" 
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                {{ in_array('RPL', request('jurusan', [])) ? 'checked' : '' }}>
-                            <span class="ml-2 text-sm text-gray-700 font-medium">RPL</span>
-                        </label>
-                        <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" name="jurusan[]" value="PM" 
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                {{ in_array('PM', request('jurusan', [])) ? 'checked' : '' }}>
-                            <span class="ml-2 text-sm text-gray-700 font-medium">PM</span>
-                        </label>
-                        <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" name="jurusan[]" value="AK" 
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                {{ in_array('AK', request('jurusan', [])) ? 'checked' : '' }}>
-                            <span class="ml-2 text-sm text-gray-700 font-medium">AK</span>
-                        </label>
-                        <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" name="jurusan[]" value="TKJ" 
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                {{ in_array('TKJ', request('jurusan', [])) ? 'checked' : '' }}>
-                            <span class="ml-2 text-sm text-gray-700 font-medium">TKJ</span>
-                        </label>
-                        <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" name="jurusan[]" value="DKV" 
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                {{ in_array('DKV', request('jurusan', [])) ? 'checked' : '' }}>
-                            <span class="ml-2 text-sm text-gray-700 font-medium">DKV</span>
-                        </label>
-                        <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" name="jurusan[]" value="MLOG" 
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                {{ in_array('MLOG', request('jurusan', [])) ? 'checked' : '' }}>
-                            <span class="ml-2 text-sm text-gray-700 font-medium">MLOG</span>
-                        </label>
-                        <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" name="jurusan[]" value="MP" 
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                {{ in_array('MP', request('jurusan', [])) ? 'checked' : '' }}>
-                            <span class="ml-2 text-sm text-gray-700 font-medium">MP</span>
-                        </label>
+                    <p class="text-xs text-gray-500">
+                        Kelas X = Program Keahlian, kelas XI/XII = Kompetensi Keahlian
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        @foreach ($jurusanList as $jur)
+                            <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" name="jurusan[]" value="{{ $jur->id_jurusan }}"
+                                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    {{ in_array($jur->id_jurusan, (array) request('jurusan', [])) ? 'checked' : '' }}>
+                                <span class="ml-2">
+                                    <span class="block text-sm text-gray-700 font-medium">{{ $jur->nama_jurusan }}</span>
+                                    <span class="block text-xs text-gray-500">{{ \App\Models\kelas::ringkasanKode($jur->id_jurusan) }}</span>
+                                </span>
+                            </label>
+                        @endforeach
                     </div>
                 </div>
 
@@ -87,7 +59,7 @@
                         <label class="flex items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                             <input type="checkbox" name="tingkat[]" value="X" 
                                 class="sr-only peer"
-                                {{ in_array('X', request('tingkat', [])) ? 'checked' : '' }}>
+                                {{ in_array('X', (array) request('tingkat', [])) ? 'checked' : '' }}>
                             <div class="text-center peer-checked:text-blue-600 peer-checked:font-semibold">
                                 <div class="text-lg font-bold">X</div>
                                 <div class="text-xs text-gray-500">Kelas 10</div>
@@ -96,7 +68,7 @@
                         <label class="flex items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                             <input type="checkbox" name="tingkat[]" value="XI" 
                                 class="sr-only peer"
-                                {{ in_array('XI', request('tingkat', [])) ? 'checked' : '' }}>
+                                {{ in_array('XI', (array) request('tingkat', [])) ? 'checked' : '' }}>
                             <div class="text-center peer-checked:text-blue-600 peer-checked:font-semibold">
                                 <div class="text-lg font-bold">XI</div>
                                 <div class="text-xs text-gray-500">Kelas 11</div>
@@ -105,7 +77,7 @@
                         <label class="flex items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                             <input type="checkbox" name="tingkat[]" value="XII" 
                                 class="sr-only peer"
-                                {{ in_array('XII', request('tingkat', [])) ? 'checked' : '' }}>
+                                {{ in_array('XII', (array) request('tingkat', [])) ? 'checked' : '' }}>
                             <div class="text-center peer-checked:text-blue-600 peer-checked:font-semibold">
                                 <div class="text-lg font-bold">XII</div>
                                 <div class="text-xs text-gray-500">Kelas 12</div>
@@ -114,7 +86,7 @@
                     </div>
                 </div>
 
-                <!-- Filter Status (Opsional) -->
+                <!-- Urutkan -->
                 <div class="space-y-3">
                     <label class="block text-sm font-semibold text-gray-700">
                         <i class="bi bi-toggles mr-2 text-purple-600"></i>
