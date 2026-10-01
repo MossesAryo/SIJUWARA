@@ -144,7 +144,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ketua_program/export_pdf', [KetuaProgramController::class, 'export_pdf'])->name('ketua_program.export.pdf');
     Route::get('/ketua_program/export_excel', [KetuaProgramController::class, 'export_excel'])->name('ketua_program.export.excel');
     Route::post('/ketua_program/import', [KetuaProgramController::class, 'import'])->name('ketua_program.import');
-
+    Route::get('/ketua_program/template', [KetuaProgramController::class, 'template'])->name('ketua_program.template');
+    
 
     Route::get('/kelas', [KelasController::class, 'index'])->name('kelas');
     Route::post('/kelas/store', [KelasController::class, 'store'])->name('kelas.store');
