@@ -117,7 +117,7 @@
 
                             <!-- TEMPLATE -->
                             <div class="pt-3 border-t">
-                                <a href="{{ asset('storage/template_kaprog.xlsx') }}" download
+                                <a href="{{ route('ketua_program.template') }}"
                                     class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
                                     Download Template Excel
                                 </a>
