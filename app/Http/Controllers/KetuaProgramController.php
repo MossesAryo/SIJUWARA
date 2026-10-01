@@ -12,6 +12,7 @@ use App\Exports\Ketua_Program_ExportExcel;
 use App\Imports\Ketua_Program_Import;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\Ketua_Program_Template;
 
 /**
  * Kelola data ketua program.
@@ -139,6 +140,13 @@ class KetuaProgramController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
+    }
+
+        public function template()
+    {
+        $jurusan = jurusan::orderBy('id_jurusan')->get();
+
+        return Excel::download(new Ketua_Program_Template($jurusan), 'Template_Import_Ketua_Program.xlsx');
     }
 
     public function import(Request $request)

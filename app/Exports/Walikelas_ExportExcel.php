@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Exports;
+namespace App\Exports;  
 
 use App\Models\walikelas;
 use Maatwebsite\Excel\Concerns\FromView;
