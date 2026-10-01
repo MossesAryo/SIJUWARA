@@ -18,7 +18,7 @@
                 <th>NIP</th>
                 <th>Username</th>
                 <th>Nama Ketua Program</th>
-                <th>Jurusan</th>
+                <th>Program / Kompetensi Keahlian</th>
             </tr>
         </thead>
         <tbody>
@@ -26,11 +26,10 @@
                 <tr>
                     <td>{{ $item->nip_kaprog }}</td>
                     <td>{{ $item->nama_ketua_program }}</td>
-                    <td>{{ $item->jurusan->nama_jurusan }}</td>
+                    <td>{{ $item->jurusan->label_dropdown }}</td>
                 </tr>
             @endforeach
         </tbody>
     </table>
 </body>
 </html>
-    

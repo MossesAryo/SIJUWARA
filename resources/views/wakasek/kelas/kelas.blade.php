@@ -91,7 +91,7 @@
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2">
                                     <i class="bi bi-tag text-gray-400"></i>
-                                    Jurusan
+                                    Program / Kompetensi Keahlian
                                 </div>
                             </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -124,7 +124,8 @@
                                     </div>
                                 </td>
                                 <td class="px-6 py-4">
-                                    <div class="text-sm font-semibold text-gray-900">{{ $item->jurusan->id_jurusan }}</div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ $item->kode_keahlian }}</div>
+                                    <div class="text-xs text-gray-500">{{ $item->label_keahlian }}</div>
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="text-sm font-semibold text-gray-900">{{ $item->nama_kelas }}</div>
@@ -178,16 +179,79 @@
 
 @push('js')
     <script>
+        // ===== Mapping keahlian (sumber: App\Models\kelas) =====
+        // Kelas X = Program Keahlian, kelas XI/XII = Kompetensi Keahlian
+        const PROGRAM_KEAHLIAN = @json(\App\Models\kelas::PROGRAM_KEAHLIAN);
+        const KOMPETENSI_KEAHLIAN = @json(\App\Models\kelas::KOMPETENSI_KEAHLIAN);
+
+        function tingkatDariNama(nama) {
+            const m = (nama || '').trim().match(/^(XII|XI|X)\s/i);
+            return m ? m[1].toUpperCase() : null;
+        }
+
+        function kodeKeahlian(tingkat, idJurusan) {
+            const map = tingkat === 'X' ? PROGRAM_KEAHLIAN : KOMPETENSI_KEAHLIAN;
+            return map[idJurusan] || null;
+        }
+
+        function infoKeahlian(tingkat, idJurusan) {
+            if (!tingkat || !idJurusan) return '';
+            const label = tingkat === 'X' ? 'Program Keahlian' : 'Kompetensi Keahlian';
+            const kode = kodeKeahlian(tingkat, idJurusan);
+            return kode ?
+                `Kelas ${tingkat}: ${label} ${kode}` :
+                `Jurusan ini tidak tersedia untuk kelas ${tingkat}`;
+        }
+
+        // ===== Modal Tambah =====
         function openCreateModal() {
             const modal = document.getElementById('modal-create');
             if (!modal) return console.warn('modal-create tidak ditemukan');
             modal.classList.remove('hidden');
         }
 
+        // Isi otomatis ID & nama kelas saat tingkat + jurusan dipilih
+        function isiOtomatisCreate() {
+            const tingkat = document.getElementById('create_tingkat')?.value;
+            const jur = document.getElementById('id_jurusan')?.value;
+            const hint = document.getElementById('create_hint');
+            const idEl = document.getElementById('id_kelas');
+            const namaEl = document.getElementById('nama_kelas');
+
+            if (hint) hint.textContent = infoKeahlian(tingkat, jur);
+            if (!tingkat || !jur) return;
+
+            const kode = kodeKeahlian(tingkat, jur);
+            if (!kode) return;
+
+            // ID pakai kode kompetensi supaya naik kelas tetap jalan (X-RPL-1 -> XI-RPL-1)
+            const prefixId = `${tingkat}-${KOMPETENSI_KEAHLIAN[jur]}-`;
+            const prefixNama = `${tingkat} ${kode} `;
+
+            if (idEl && (idEl.value === '' || idEl.dataset.auto === '1')) {
+                idEl.value = prefixId;
+                idEl.dataset.auto = '1';
+            }
+            if (namaEl && (namaEl.value === '' || namaEl.dataset.auto === '1')) {
+                namaEl.value = prefixNama;
+                namaEl.dataset.auto = '1';
+            }
+        }
+
+        // ===== Modal Filter =====
         function openFilterModal() {
             const modal = document.getElementById('modal-filter');
             if (!modal) return console.warn('modal-filter tidak ditemukan');
             modal.classList.remove('hidden');
+        }
+
+        // ===== Modal Edit =====
+        function refreshHintEdit() {
+            const hint = document.getElementById('edit_hint');
+            if (!hint) return;
+            const nama = document.getElementById('edit_nama_kelas')?.value;
+            const jur = document.getElementById('edit_jurusan')?.value;
+            hint.textContent = infoKeahlian(tingkatDariNama(nama), jur);
         }
 
         function openEditModal(id, nama, jurusanVal) {
@@ -197,11 +261,11 @@
             const form = document.getElementById('form-edit');
             const mdl = document.getElementById('modal-edit');
 
-            console.log('Jurusan diterima:', jurusanVal, typeof jurusanVal);
-
             if (idK) idK.value = id;
             if (nm) nm.value = nama;
             if (jur) jur.value = jurusanVal ?? '';
+
+            refreshHintEdit();
 
             if (form) form.action = `/kelas/${id}/update`;
             if (!mdl) return console.warn('modal-edit tidak ditemukan');
@@ -209,7 +273,7 @@
             mdl.classList.remove('hidden');
         }
 
-
+        // ===== Modal Hapus =====
         function openDeleteModal(id, nama) {
             const nameEl = document.getElementById('delete-nama-kelas');
             const form = document.getElementById('form-delete');
@@ -245,6 +309,22 @@
         function openModal(id) {
             document.getElementById(id).classList.remove('hidden');
         }
+
+        // Listener form tambah & edit
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('create_tingkat')?.addEventListener('change', isiOtomatisCreate);
+            document.getElementById('id_jurusan')?.addEventListener('change', isiOtomatisCreate);
+
+            // Kalau user mengetik sendiri, jangan ditimpa lagi oleh isi otomatis
+            ['id_kelas', 'nama_kelas'].forEach(id => {
+                document.getElementById(id)?.addEventListener('input', e => {
+                    e.target.dataset.auto = '0';
+                });
+            });
+
+            document.getElementById('edit_jurusan')?.addEventListener('change', refreshHintEdit);
+            document.getElementById('edit_nama_kelas')?.addEventListener('input', refreshHintEdit);
+        });
 
         // Search functionality
         document.addEventListener("DOMContentLoaded", () => {
@@ -321,7 +401,7 @@
                     }
 
                     // Search selalu mulai dari page 1
-                    const url = `/kelas?search=${query}`;
+                    const url = `/kelas?search=${encodeURIComponent(query)}`;
                     fetchData(url);
 
                 }, 200);

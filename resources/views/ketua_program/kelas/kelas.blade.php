@@ -75,7 +75,7 @@
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2">
                                     <i class="bi bi-tag text-gray-400"></i>
-                                    Jurusan
+                                    Program / Kompetensi Keahlian
                                 </div>
                             </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -107,7 +107,8 @@
                                     </div>
                                 </td>
                                 <td class="px-6 py-4">
-                                    <div class="text-sm font-semibold text-gray-900">{{ $item->jurusan }}</div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ $item->kode_keahlian }}</div>
+                                    <div class="text-xs text-gray-500">{{ $item->label_keahlian }}</div>
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="text-sm font-semibold text-gray-900">{{ $item->nama_kelas }}</div>

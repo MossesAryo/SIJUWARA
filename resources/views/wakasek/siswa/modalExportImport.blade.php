@@ -27,7 +27,7 @@
                     <div class="space-y-4">
                         <div class="w-full">
                             <label for="exportJurusan" class="block text-sm font-medium text-gray-700 mb-2">
-                                Pilih Jurusan
+                                Pilih Program / Kompetensi Keahlian
                             </label>
                             <div class="relative">
                                 <select id="exportJurusan" name="jurusan"
@@ -35,11 +35,11 @@
                                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                                            hover:border-gray-400 transition-colors duration-200
                                            text-gray-700 text-sm">
-                                    <option value="" class="text-gray-500">Semua Jurusan</option>
+                                    <option value="" class="text-gray-500">Semua Program / Kompetensi Keahlian</option>
                                     @foreach ($jurusanList as $jurusan)
                                         <option value="{{ $jurusan->id_jurusan }}"
                                             {{ request('jurusan') == $jurusan->id_jurusan ? 'selected' : '' }}>
-                                            {{ $jurusan->id_jurusan }}
+                                            {{ $jurusan->label_dropdown }}
                                         </option>
                                     @endforeach
                                 </select>

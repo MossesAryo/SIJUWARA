@@ -18,7 +18,7 @@
     <h1>Laporan {{ $type === 'pelanggaran' ? 'Pelanggaran' : 'Penghargaan' }}</h1>
     <div class="filter-info">
         <p><strong>Kelas:</strong> {{ $kelas }}</p>
-        <p><strong>Jurusan:</strong> {{ $jurusan }}</p>
+        <p><strong>{{ $labelKeahlian ?? 'Program / Kompetensi Keahlian' }}:</strong> {{ $jurusan }}</p>
         <p><strong>Periode:</strong>@if ($startDate == null && $endDate == null)
             Semua Periode
         @elseif ($endDate == null)

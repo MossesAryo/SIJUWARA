@@ -10,29 +10,56 @@
             </div>
 
             <div class="space-y-4">
-                <div>
-                    <label for="id_kelas" class="block text-sm font-medium text-gray-700 mb-1">ID Kelas</label>
-                    <input type="text" id="id_kelas" name="id_kelas" required
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Contoh: X-AK-2, XI-RPL-1, XII-TKJ-3">
-                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label for="create_tingkat" class="block text-sm font-medium text-gray-700 mb-1">Tingkat</label>
+                        {{-- Tanpa name: hanya bantuan untuk isi otomatis --}}
+                        <select id="create_tingkat"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="" selected>Pilih</option>
+                            <option value="X">X</option>
+                            <option value="XI">XI</option>
+                            <option value="XII">XII</option>
+                        </select>
+                    </div>
 
-               <div>
-                        <label for="id_jurusan" class="block text-sm font-medium text-gray-700 mb-1">Jurusan</label>
+                    <div class="sm:col-span-2">
+                        <label for="id_jurusan" class="block text-sm font-medium text-gray-700 mb-1">
+                            Jurusan (Program / Kompetensi Keahlian)
+                        </label>
                         <select id="id_jurusan" name="id_jurusan" required
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                             <option value="" disabled selected>Pilih Jurusan</option>
                             @foreach ($jurusanList as $item)
-                                <option value="{{ $item->id_jurusan }}">{{ $item->nama_jurusan }}</option>
+                                <option value="{{ $item->id_jurusan }}">
+                                    {{ $item->nama_jurusan }} ({{ \App\Models\kelas::ringkasanKode($item->id_jurusan) }})
+                                </option>
                             @endforeach
                         </select>
                     </div>
+                </div>
+
+                <p id="create_hint" class="text-xs text-blue-600 -mt-2"></p>
+
+                <div>
+                    <label for="id_kelas" class="block text-sm font-medium text-gray-700 mb-1">ID Kelas</label>
+                    <input type="text" id="id_kelas" name="id_kelas" required
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Contoh: X-RPL-2, XI-RPL-1, XII-TKJ-3">
+                    <p class="text-xs text-gray-500 mt-1">
+                        Kode di ID sama untuk semua tingkat (mis. X-RPL-1, XI-RPL-1) agar proses naik kelas berjalan.
+                    </p>
+                </div>
 
                 <div>
                     <label for="nama_kelas" class="block text-sm font-medium text-gray-700 mb-1">Nama Kelas</label>
                     <input type="text" id="nama_kelas" name="nama_kelas" required
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Contoh: X AK 2, XI RPL 1, XII TKJ 3">
+                        placeholder="Contoh: X PPLG 2, XI RPL 1, XII TKJ 3">
+                    <p class="text-xs text-gray-500 mt-1">
+                        Kelas X memakai Program Keahlian (AKL, MPLB, PM, PPLG, DKV, TJKT).
+                        Kelas XI/XII memakai Kompetensi Keahlian (AK, MP, MLOG, RPL, TKJ, BR, DKV).
+                    </p>
                 </div>
             </div>
 
@@ -45,5 +72,3 @@
         </form>
     </div>
 </div>
-
-

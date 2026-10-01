@@ -21,18 +21,18 @@
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     </div>
                     <div class="space-y-2">
-                <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <i class="bi bi-buildings text-gray-500"></i> Jurusan
-                </label>
-                <select id="edit_jurusan" name="id_jurusan" class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
-                    <option value="">-- Pilih Jurusan --</option>
-                    @foreach ($daftar_jurusan as $jurusan)
-                        <option value="{{ $jurusan->id_jurusan }}" {{ request('jurusan') == $jurusan->id_jurusan ? 'selected' : '' }}>
-                            {{ $jurusan->id_jurusan }} 
-                        </option>
-                    @endforeach
-                </select>
-            </div>
+                        <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
+                            <i class="bi bi-buildings text-gray-500"></i> Program / Kompetensi Keahlian
+                        </label>
+                        <select id="edit_jurusan" name="id_jurusan" class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
+                            <option value="">-- Pilih Program / Kompetensi Keahlian --</option>
+                            @foreach ($daftar_jurusan as $jurusan)
+                                <option value="{{ $jurusan->id_jurusan }}" {{ request('jurusan') == $jurusan->id_jurusan ? 'selected' : '' }}>
+                                    {{ $jurusan->label_dropdown }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
 
                 </div>
                 <div class="flex justify-end gap-2 pt-4">
