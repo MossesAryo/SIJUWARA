@@ -11,6 +11,7 @@ use App\Exports\Guru_Bk_ExportExcel;
 use App\Imports\Guru_Bk_Import;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\BK_Template;
 
 /**
  * Manajemen akun dan kelas guru BK.
@@ -160,5 +161,13 @@ class Guru_bkController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
+    }
+
+    public function template()
+    {
+        return Excel::download(
+         new BK_Template(),
+        'Template_Import_Guru_BK.xlsx'
+        );
     }
 }

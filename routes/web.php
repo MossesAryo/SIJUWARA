@@ -160,7 +160,8 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/gurubk/{nip}/destroy', [Guru_bkController::class, 'destroy'])->name('gurubk.destroy');
     Route::get('/guru_bk/export_pdf', [Guru_bkController::class, 'export_pdf'])->name('guru_bk.export.pdf');
     Route::get('/guru_bk/export_excel', [Guru_bkController::class, 'export_excel'])->name('guru_bk.export.excel');
-    Route::post('/guru_bk/import', [Guru_bkController::class, 'import'])->name('guru_bk.import');
+    Route::get('/guru-bk/template', [Guru_bkController::class, 'template'])->name('guru_bk.template');
+    Route::post('/guru-bk/import', [Guru_bkController::class, 'import'])->name('guru_bk.import');
 
     Route::get('/walikelas', [WalikelasController::class, 'index'])->name('walikelas.index');
     Route::post('/walikelas/store', [WalikelasController::class, 'store'])->name('walikelas.store');
