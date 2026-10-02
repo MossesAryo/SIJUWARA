@@ -163,14 +163,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/guru-bk/template', [Guru_bkController::class, 'template'])->name('guru_bk.template');
     Route::post('/guru-bk/import', [Guru_bkController::class, 'import'])->name('guru_bk.import');
 
-    Route::get('/walikelas', [WalikelasController::class, 'index'])->name('walikelas.index');
-    Route::post('/walikelas/store', [WalikelasController::class, 'store'])->name('walikelas.store');
-    Route::put('/walikelas/{nip_walikelas}/{username}/update', [WalikelasController::class, 'update'])->name('walikelas.update');
-    Route::delete('/walikelas/{nip_walikelas}', [WalikelasController::class, 'destroy'])->name('walikelas.destroy');
-    Route::post('/gurubk/store', [Guru_bkController::class, 'store'])->name('gurubk.store');
-    Route::put('/gurubk/{nip}/update', [Guru_bkController::class, 'update'])->name('gurubk.update');
-    Route::delete('/gurubk/{nip}/destroy', [Guru_bkController::class, 'destroy'])->name('gurubk.destroy');
-
+    // --- ROUTE WALIKELAS (Sudah dirapikan dari duplikasi) ---
     Route::get('/walikelas', [WalikelasController::class, 'index'])->name('walikelas.index');
     Route::post('/walikelas/store', [WalikelasController::class, 'store'])->name('walikelas.store');
     Route::put('/walikelas/{nip_walikelas}/{username}/update', [WalikelasController::class, 'update'])->name('walikelas.update');
@@ -178,7 +171,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/walikelas/export_pdf', [WalikelasController::class, 'export_pdf'])->name('walikelas.export.pdf');
     Route::get('/walikelas/export_excel', [WalikelasController::class, 'export_excel'])->name('walikelas.export.excel');
+    Route::get('/walikelas/template', [WalikelasController::class, 'template'])->name('walikelas.template'); // <-- Ditambahkan di sini
     Route::post('/walikelas/import', [WalikelasController::class, 'import'])->name('walikelas.import');
+    // --------------------------------------------------------
 
     Route::get('/aspekpenilaian', [Aspek_penilaianController::class, 'index'])->name('aspekpenilaian');
     Route::post('/aspekpenilaian/store', [Aspek_penilaianController::class, 'store'])->name('aspekpenilaian.store');
