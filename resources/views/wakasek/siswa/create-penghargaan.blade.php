@@ -1,6 +1,6 @@
 <div id="modal-create-penghargaan" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[999999]">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 my-8 overflow-hidden">
-        <form action="{{ route('siswa.skoringPenghargaan', ['nis' => $siswa->nis]) }}" method="POST" class="p-6 space-y-5">
+        <form id="form-create-penghargaan" action="{{ route('siswa.skoringPenghargaan', ['nis' => $siswa->nis]) }}" method="POST" class="p-6 space-y-5">
             @csrf
 
             <div class="flex justify-between items-center border-b pb-4">
@@ -47,8 +47,8 @@
                     class="px-6 py-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition font-medium">
                     Batal
                 </button>
-                <button type="submit"
-                    class="px-8 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 transition font-medium shadow-lg">
+                <button type="submit" id="btn-submit-penghargaan" data-default-text="Simpan Penghargaan"
+                    class="px-8 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 transition font-medium shadow-lg disabled:opacity-60 disabled:cursor-not-allowed">
                     Simpan Penghargaan
                 </button>
             </div>

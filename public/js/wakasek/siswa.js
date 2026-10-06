@@ -28,12 +28,22 @@ function openCreateModalPenanganan(nis) {
 
 function openCreateModalPenghargaan(nis) {
     const nisInput = document.getElementById('nis');
-    const aspekSelect = document.getElementById('id_aspekpenilaian_penghargaan');
-    const skorInput = document.getElementById('skor');
+    const aspekSelect = document.getElementById('aspek_penghargaan');
+    const skorInput = document.getElementById('skor_penghargaan');
 
     if (nisInput) nisInput.value = nis;
     if (aspekSelect) aspekSelect.value = '';
     if (skorInput) skorInput.value = '';
+
+    // Pastikan tombol submit kembali aktif & teksnya normal setiap modal dibuka
+    const form = document.getElementById('form-create-penghargaan');
+    if (form) {
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = btn.dataset.defaultText || 'Simpan Penghargaan';
+        }
+    }
 
     openModal('modal-create-penghargaan');
 }
@@ -188,8 +198,45 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-document.getElementById('form-edit').addEventListener('submit', function() {
-    const btn = this.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> Menyimpan...';
-});
+const formEdit = document.getElementById('form-edit');
+if (formEdit) {
+    formEdit.addEventListener('submit', function() {
+        const btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> Menyimpan...';
+    });
+}
+
+// Cegah double submit pada form "Tambah Penghargaan" (halaman Detail Siswa)
+(function () {
+    const form = document.getElementById('form-create-penghargaan');
+    if (!form) return;
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const defaultText = submitBtn ? (submitBtn.dataset.defaultText || submitBtn.innerHTML) : '';
+    let isSubmitting = false;
+
+    form.addEventListener('submit', function (e) {
+        // Tolak submit kedua selama request pertama belum selesai
+        if (isSubmitting) {
+            e.preventDefault();
+            return;
+        }
+        isSubmitting = true;
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML =
+                '<span class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2 align-middle"></span> Menyimpan...';
+        }
+    });
+
+    // Kembalikan status tombol saat halaman ditampilkan lagi (sukses/gagal/back-forward)
+    window.addEventListener('pageshow', function () {
+        isSubmitting = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = defaultText;
+        }
+    });
+})();
