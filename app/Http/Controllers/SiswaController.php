@@ -586,29 +586,47 @@ class SiswaController extends Controller
 
     public function skoringPenghargaan(Request $request)
     {
+        $request->validate([
+            'nis' => 'required',
+            'id_aspekpenilaian' => 'required',
+        ]);
+
+        $user = Auth::user();
+
         try {
-            $request->validate([
-                'nis' => 'required',
-                'id_aspekpenilaian' => 'required',
-            ]);
+            return DB::transaction(function () use ($request, $user) {
+                // Kunci baris siswa agar request duplikat (double submit) diproses berurutan,
+                // sehingga pengecekan duplikat di bawah tidak lolos secara bersamaan.
+                $siswa = siswa::where('nis', $request->nis)->lockForUpdate()->first();
 
-            $aspek = aspek_penilaian::findOrFail($request->id_aspekpenilaian);
-            $skor = (int) $aspek->indikator_poin;
-            $uraian = $aspek->uraian;
-            $user = Auth::user();
+                if (!$siswa) {
+                    return redirect()->back()->with('error', 'Data siswa tidak ditemukan');
+                }
 
-            penilaian::create([
-                'nis' => $request->nis,
-                'id_aspekpenilaian' => $request->id_aspekpenilaian,
-                'nip_bk' => $user->gurubk->nip_bk ?? null,
-                'nip_walikelas' => null,
-                'nip_wakasek' => $user->wakasek->nip_wakasek ?? null,
-                'created_at' => now(),
-            ]);
+                // Tolak penilaian identik yang dikirim hampir bersamaan (race condition).
+                $duplikat = penilaian::where('nis', $request->nis)
+                    ->where('id_aspekpenilaian', $request->id_aspekpenilaian)
+                    ->where('created_at', '>=', now()->subSeconds(5))
+                    ->exists();
 
-            $siswa = siswa::where('nis', $request->nis)->first();
+                if ($duplikat) {
+                    return redirect()->route('siswa.show', $request->nis)
+                        ->with('error', 'Penghargaan ini baru saja ditambahkan. Mohon tunggu sebentar.');
+                }
 
-            if ($siswa) {
+                $aspek = aspek_penilaian::findOrFail($request->id_aspekpenilaian);
+                $skor = (int) $aspek->indikator_poin;
+                $uraian = $aspek->uraian;
+
+                penilaian::create([
+                    'nis' => $request->nis,
+                    'id_aspekpenilaian' => $request->id_aspekpenilaian,
+                    'nip_bk' => $user->gurubk->nip_bk ?? null,
+                    'nip_walikelas' => null,
+                    'nip_wakasek' => $user->wakasek->nip_wakasek ?? null,
+                    'created_at' => now(),
+                ]);
+
                 $siswa->poin_apresiasi += $skor;
                 $siswa->poin_total += $skor;
                 $siswa->save();
@@ -623,11 +641,12 @@ class SiswaController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
-            }
 
-            return redirect()->route('siswa.show', $request->nis)
-                ->with('success', 'Data penghargaan berhasil ditambahkan.');
+                return redirect()->route('siswa.show', $request->nis)
+                    ->with('success', 'Data penghargaan berhasil ditambahkan.');
+            });
         } catch (\Exception $e) {
+            Log::error('Gagal menambah penghargaan: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
     }
