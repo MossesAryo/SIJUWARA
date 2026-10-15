@@ -15,7 +15,24 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-   use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
+
+    /**
+     * Konstanta role pengguna.
+     */
+    public const ROLE_WAKASEK = 1;
+    public const ROLE_GURU_BK = 2;
+    public const ROLE_WALIKELAS = 3;
+    public const ROLE_KETUA_PROGRAM = 4;
+    public const ROLE_SUPER_ADMIN = 5;
+
+    /**
+     * Memeriksa apakah pengguna adalah Super Admin.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return (int) $this->role === self::ROLE_SUPER_ADMIN;
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -51,28 +68,46 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-    // App\Models\User.php
 
+    /**
+     * Relasi ke data Guru BK.
+     */
     public function gurubk()
     {
         return $this->hasOne(guru_bk::class, 'username', 'username');
     }
 
+    /**
+     * Relasi ke data Wali Kelas.
+     */
     public function walikelas()
     {
         return $this->hasOne(walikelas::class, 'username', 'username');
     }
 
+    /**
+     * Relasi ke data Wakasek.
+     */
     public function wakasek()
     {
         return $this->hasOne(wakasek::class, 'username', 'username');
     }
+
+    /**
+     * Relasi ke data Ketua Program.
+     */
     public function ketua_program()
     {
         return $this->hasOne(ketua_program::class, 'username', 'username');
     }
-    public function hasRole($roles)
-{
-    return in_array($this->role, (array) $roles);
-}
+
+    /**
+     * Memeriksa apakah pengguna memiliki salah satu role tertentu.
+     *
+     * @param int|array $roles
+     */
+    public function hasRole($roles): bool
+    {
+        return in_array((int) $this->role, array_map('intval', (array) $roles), true);
+    }
 }

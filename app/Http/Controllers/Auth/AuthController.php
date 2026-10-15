@@ -59,6 +59,14 @@ class AuthController extends Controller
             }
         }
 
+        // Super Admin tidak punya tabel profil: login memakai username pada kolom yang sama.
+        if (!$user) {
+            $user = User::where('username', $request->nip)
+                ->where('role', User::ROLE_SUPER_ADMIN)
+                ->first();
+            $role = $user ? 'super_admin' : null;
+        }
+
         if (!$user) {
             return back()->withErrors(['nip' => 'NIP tidak ditemukan']);
         }
@@ -68,6 +76,11 @@ class AuthController extends Controller
         }
 
         Auth::login($user);
+        $request->session()->regenerate();
+
+        if ($user->isSuperAdmin()) {
+            return redirect()->route('superadmin.dashboard')->with('success', 'Berhasil login');
+        }
 
         return redirect()->route('wakasek.dashboard')->with('success', 'Berhasil login');
     }

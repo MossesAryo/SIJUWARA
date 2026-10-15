@@ -94,13 +94,15 @@
                                             <i class="bi bi-arrow-counterclockwise text-sm"></i>
                                         </button>
 
-                                        <!-- Force Delete -->
-                                        <button type="button"
-                                            onclick="openForceDeleteModal('{{ $item->nis }}', '{{ addslashes($item->nama_siswa) }}')"
-                                            class="action-btn inline-flex items-center justify-center w-9 h-9 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full"
-                                            title="Hapus Permanen">
-                                            <i class="bi bi-trash-fill text-sm"></i>
-                                        </button>
+                                        @if ((int) auth()->user()->role === 5)
+                                            <!-- Force Delete -->
+                                            <button type="button"
+                                                onclick="openForceDeleteModal('{{ $item->nis }}', '{{ addslashes($item->nama_siswa) }}')"
+                                                class="action-btn inline-flex items-center justify-center w-9 h-9 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full"
+                                                title="Hapus Permanen">
+                                                <i class="bi bi-trash-fill text-sm"></i>
+                                            </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -165,45 +167,47 @@
         </div>
     </div>
 
-    <!-- Modal Force Delete -->
-    <div id="modal-force-delete"
-        class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-[9999]">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-            <form id="form-force-delete" method="POST" class="p-6 space-y-4">
-                @csrf
-                @method('DELETE')
-                <div class="flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-gray-700">Hapus Permanen</h2>
-                    <button type="button" onclick="closeModalArsip('modal-force-delete')"
-                        class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
-                </div>
-
-                <div class="flex items-start gap-3">
-                    <div class="w-10 h-10 flex items-center justify-center bg-red-100 rounded-full">
-                        <i class="bi bi-exclamation-triangle-fill text-red-600 text-lg"></i>
+    @if ((int) auth()->user()->role === 5)
+        <!-- Modal Force Delete -->
+        <div id="modal-force-delete"
+            class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-[9999]">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+                <form id="form-force-delete" method="POST" class="p-6 space-y-4">
+                    @csrf
+                    @method('DELETE')
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-xl font-bold text-gray-700">Hapus Permanen</h2>
+                        <button type="button" onclick="closeModalArsip('modal-force-delete')"
+                            class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
                     </div>
-                    <div>
-                        <p class="text-gray-600 text-base">
-                            Hapus permanen siswa
-                            <span id="force-delete-nama-siswa" class="font-semibold text-red-600"></span>?
-                        </p>
-                        <p class="text-sm text-gray-500 mt-1">Tindakan ini <strong>tidak dapat dibatalkan</strong> dan data akan hilang selamanya.</p>
-                    </div>
-                </div>
 
-                <div class="flex justify-end gap-2 pt-4">
-                    <button type="button" onclick="closeModalArsip('modal-force-delete')"
-                        class="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100">
-                        Batal
-                    </button>
-                    <button type="submit"
-                        class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700">
-                        Hapus Permanen
-                    </button>
-                </div>
-            </form>
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 flex items-center justify-center bg-red-100 rounded-full">
+                            <i class="bi bi-exclamation-triangle-fill text-red-600 text-lg"></i>
+                        </div>
+                        <div>
+                            <p class="text-gray-600 text-base">
+                                Hapus permanen siswa
+                                <span id="force-delete-nama-siswa" class="font-semibold text-red-600"></span>?
+                            </p>
+                            <p class="text-sm text-gray-500 mt-1">Tindakan ini <strong>tidak dapat dibatalkan</strong> dan data akan hilang selamanya.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-4">
+                        <button type="button" onclick="closeModalArsip('modal-force-delete')"
+                            class="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100">
+                            Batal
+                        </button>
+                        <button type="submit"
+                            class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700">
+                            Hapus Permanen
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
+    @endif
 @endsection
 
 @push('js')
@@ -214,11 +218,13 @@
             document.getElementById('modal-restore').classList.remove('hidden');
         }
 
-        function openForceDeleteModal(nis, nama) {
-            document.getElementById('force-delete-nama-siswa').innerText = nama;
-            document.getElementById('form-force-delete').action = `/siswa/${nis}/force-delete`;
-            document.getElementById('modal-force-delete').classList.remove('hidden');
-        }
+        @if ((int) auth()->user()->role === 5)
+            function openForceDeleteModal(nis, nama) {
+                document.getElementById('force-delete-nama-siswa').innerText = nama;
+                document.getElementById('form-force-delete').action = `/siswa/${nis}/force-delete`;
+                document.getElementById('modal-force-delete').classList.remove('hidden');
+            }
+        @endif
 
         function closeModalArsip(id) {
             document.getElementById(id).classList.add('hidden');

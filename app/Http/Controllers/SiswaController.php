@@ -37,8 +37,10 @@ class SiswaController extends Controller
 
         if ($user->role == '2') {
             $guruBk = guru_bk::where('username', $user->username)->first();
+
             if ($guruBk) {
                 $kelasIds = $guruBk->kelas()->pluck('kelas.id_kelas')->toArray();
+
                 if (! empty($kelasIds)) {
                     $query->whereIn('id_kelas', $kelasIds);
                 } else {
@@ -46,31 +48,46 @@ class SiswaController extends Controller
                     $penghargaanList = siswa_penghargaan::all();
                     $siswa = siswa::paginate(10);
 
-                    return view('wakasek.siswa.index', compact('siswa', 'jurusanList', 'kelasList', 'penghargaanList'));
+                    return view('wakasek.siswa.index', compact(
+                        'siswa',
+                        'jurusanList',
+                        'kelasList',
+                        'penghargaanList'
+                    ));
                 }
             }
         }
 
         $ketua = null;
+
         if ($user->role == '4') {
             $ketua = ketua_program::where('username', $user->username)->first();
+
             if (! $ketua) {
                 abort(403, 'Data Ketua Program tidak ditemukan.');
             }
-            $query->whereHas('kelas.jurusan', fn($q) => $q->where('id_jurusan', $ketua->id_jurusan));
+
+            $query->whereHas(
+                'kelas.jurusan',
+                fn ($q) => $q->where('id_jurusan', $ketua->id_jurusan)
+            );
         }
 
         $wali = null;
+
         if ($user->role == '3') {
             $wali = walikelas::where('username', $user->username)->first();
+
             if (! $wali) {
                 abort(403, 'Data Walikelas tidak ditemukan.');
             }
+
             $query->where('id_kelas', $wali->id_kelas);
         }
 
         if ($request->filled('search')) {
             $search = $request->search;
+
             $query->where(function ($q) use ($search) {
                 $q->where('nama_siswa', 'like', '%' . $search . '%')
                     ->orWhere('nis', 'like', '%' . $search . '%');
@@ -103,10 +120,21 @@ class SiswaController extends Controller
 
         $penghargaanList = siswa_penghargaan::all();
 
-        $siswa = $query->orderBy('nama_siswa')->paginate(10)
-            ->appends($request->only(['search', 'jurusan', 'kelas', 'status']));
+        $siswa = $query->orderBy('nama_siswa')
+            ->paginate(10)
+            ->appends($request->only([
+                'search',
+                'jurusan',
+                'kelas',
+                'status',
+            ]));
 
-        return view('wakasek.siswa.index', compact('siswa', 'jurusanList', 'kelasList', 'penghargaanList'));
+        return view('wakasek.siswa.index', compact(
+            'siswa',
+            'jurusanList',
+            'kelasList',
+            'penghargaanList'
+        ));
     }
 
     public function fetchAPI()
@@ -135,9 +163,13 @@ class SiswaController extends Controller
                 'id_kelas' => $request->id_kelas,
             ]);
 
-            return redirect()->route('siswa.index')->with('success', 'Siswa berhasil ditambahkan');
+            return redirect()
+                ->route('siswa.index')
+                ->with('success', 'Siswa berhasil ditambahkan');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -153,9 +185,13 @@ class SiswaController extends Controller
                 'id_penghargaan' => $request->id_penghargaan,
             ]);
 
-            return redirect()->back()->with('success', 'Penghargaan berhasil ditambahkan');
+            return redirect()
+                ->back()
+                ->with('success', 'Penghargaan berhasil ditambahkan');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -171,9 +207,13 @@ class SiswaController extends Controller
                 'id_sp' => $request->id_sp,
             ]);
 
-            return redirect()->back()->with('success', 'Surat Peringatan berhasil ditambahkan');
+            return redirect()
+                ->back()
+                ->with('success', 'Surat Peringatan berhasil ditambahkan');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -182,16 +222,30 @@ class SiswaController extends Controller
         $siswa = siswa::where('nis', $nis)->first();
 
         if (! $siswa) {
-            return redirect()->route('siswa.index')->with('error', 'Siswa tidak ditemukan');
+            return redirect()
+                ->route('siswa.index')
+                ->with('error', 'Siswa tidak ditemukan');
         }
 
         $penghargaan = penghargaan::all();
         $penghargaanList = siswa_penghargaan::where('nis', $nis)->get();
         $peringatan = surat_peringatan::all();
-        $skoringpenghargaan = aspek_penilaian::where('jenis_poin', 'Apresiasi')->get();
-        $skoringpelanggaran = aspek_penilaian::where('jenis_poin', 'Pelanggaran')->get();
+
+        $skoringpenghargaan = aspek_penilaian::where(
+            'jenis_poin',
+            'Apresiasi'
+        )->get();
+
+        $skoringpelanggaran = aspek_penilaian::where(
+            'jenis_poin',
+            'Pelanggaran'
+        )->get();
+
         $peringatanList = siswa_sp::where('nis', $nis)->get();
-        $intervensiList = intervensi::where('nis', $nis)->orderBy('created_at', 'desc')->get();
+
+        $intervensiList = intervensi::where('nis', $nis)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         $poinPositif = $siswa->poin_apresiasi ?? 0;
         $poinNegatif = $siswa->poin_pelanggaran ?? 0;
@@ -233,6 +287,7 @@ class SiswaController extends Controller
         }
 
         $level = null;
+
         if ($poinTotal >= 151) {
             $level = 'PH3';
         } elseif ($poinTotal >= 126) {
@@ -244,11 +299,20 @@ class SiswaController extends Controller
         if ($level) {
             $penghargaan = penghargaan::firstOrCreate(
                 ['level_penghargaan' => $level],
-                ['tanggal_penghargaan' => now(), 'alasan' => 'Penghargaan otomatis – Poin total sesuai rentang']
+                [
+                    'tanggal_penghargaan' => now(),
+                    'alasan' => 'Penghargaan otomatis – Poin total sesuai rentang',
+                ]
             );
 
-            if (! siswa_penghargaan::where('nis', $siswa->nis)->where('id_penghargaan', $penghargaan->id_penghargaan)->exists()) {
-                siswa_penghargaan::create(['nis' => $siswa->nis, 'id_penghargaan' => $penghargaan->id_penghargaan]);
+            if (! siswa_penghargaan::where('nis', $siswa->nis)
+                ->where('id_penghargaan', $penghargaan->id_penghargaan)
+                ->exists()) {
+                siswa_penghargaan::create([
+                    'nis' => $siswa->nis,
+                    'id_penghargaan' => $penghargaan->id_penghargaan,
+                ]);
+
                 ActivityLog::create([
                     'user_id' => Auth::id() ?? 1,
                     'nis' => $siswa->nis,
@@ -260,7 +324,11 @@ class SiswaController extends Controller
             }
 
             $otherPengh = siswa_penghargaan::where('nis', $siswa->nis)
-                ->whereHas('penghargaan', fn($q) => $q->where('level_penghargaan', '!=', $level));
+                ->whereHas(
+                    'penghargaan',
+                    fn ($q) => $q->where('level_penghargaan', '!=', $level)
+                );
+
             if ($otherPengh->exists()) {
                 $otherPengh->delete();
             }
@@ -272,6 +340,7 @@ class SiswaController extends Controller
     private function cekSPOtomatis($siswa, $poinTotal)
     {
         $level = null;
+
         if ($poinTotal <= -76) {
             $level = 'SP3';
         } elseif ($poinTotal <= -51) {
@@ -282,10 +351,15 @@ class SiswaController extends Controller
 
         if ($level) {
             siswa_penghargaan::where('nis', $siswa->nis)->delete();
+
             $this->buatSP($siswa, $level, 'poin sesuai rentang');
 
             $otherSP = siswa_sp::where('nis', $siswa->nis)
-                ->whereHas('peringatan', fn($q) => $q->where('level_sp', '!=', $level));
+                ->whereHas(
+                    'peringatan',
+                    fn ($q) => $q->where('level_sp', '!=', $level)
+                );
+
             if ($otherSP->exists()) {
                 $otherSP->delete();
             }
@@ -299,11 +373,20 @@ class SiswaController extends Controller
         try {
             $sp = surat_peringatan::firstOrCreate(
                 ['level_sp' => $level],
-                ['tanggal_sp' => now(), 'alasan' => "Surat Peringatan otomatis – {$keterangan}"]
+                [
+                    'tanggal_sp' => now(),
+                    'alasan' => "Surat Peringatan otomatis – {$keterangan}",
+                ]
             );
 
-            if (! siswa_sp::where('nis', $siswa->nis)->where('id_sp', $sp->id_sp)->exists()) {
-                siswa_sp::create(['nis' => $siswa->nis, 'id_sp' => $sp->id_sp]);
+            if (! siswa_sp::where('nis', $siswa->nis)
+                ->where('id_sp', $sp->id_sp)
+                ->exists()) {
+                siswa_sp::create([
+                    'nis' => $siswa->nis,
+                    'id_sp' => $sp->id_sp,
+                ]);
+
                 ActivityLog::create([
                     'user_id' => Auth::id() ?? 1,
                     'nis' => $siswa->nis,
@@ -314,7 +397,10 @@ class SiswaController extends Controller
                 ]);
             }
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            Log::error('Gagal membuat SP otomatis', [
+                'nis' => $siswa->nis,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -328,6 +414,7 @@ class SiswaController extends Controller
             ]);
 
             $siswa = siswa::where('nis', $nis)->firstOrFail();
+
             $siswa->update([
                 'nis' => $request->nis,
                 'nama_siswa' => $request->nama_siswa,
@@ -335,12 +422,18 @@ class SiswaController extends Controller
             ]);
 
             if ($request->input('redirect_to') === 'show') {
-                return redirect()->route('siswa.show', $siswa->nis)->with('success', 'Data berhasil diperbarui.');
+                return redirect()
+                    ->route('siswa.show', $siswa->nis)
+                    ->with('success', 'Data berhasil diperbarui.');
             }
 
-            return redirect()->route('siswa.index')->with('success', 'Data berhasil diperbarui.');
+            return redirect()
+                ->route('siswa.index')
+                ->with('success', 'Data berhasil diperbarui.');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -350,14 +443,32 @@ class SiswaController extends Controller
             $siswa = siswa::where('nis', $nis)->first();
 
             if (! $siswa) {
-                return redirect()->route('siswa.index')->with('error', 'Siswa tidak ditemukan');
+                return redirect()
+                    ->route('siswa.index')
+                    ->with('error', 'Siswa tidak ditemukan');
             }
 
             $siswa->delete();
 
-            return redirect()->route('siswa.index')->with('success', 'Siswa berhasil dihapus');
+            ActivityLog::catat(
+                ActivityLog::KATEGORI_SISWA,
+                'Arsipkan Siswa',
+                "Siswa {$siswa->nama_siswa} (NIS {$siswa->nis}) dipindahkan ke arsip.",
+                $siswa->nis
+            );
+
+            return redirect()
+                ->route('siswa.index')
+                ->with('success', 'Siswa berhasil dihapus');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            Log::error('Gagal mengarsipkan siswa', [
+                'nis' => $nis,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -367,13 +478,15 @@ class SiswaController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
+
             $query->where(function ($q) use ($search) {
-                $q->where('nama_siswa', 'like', '%'.$search.'%')
-                    ->orWhere('nis', 'like', '%'.$search.'%');
+                $q->where('nama_siswa', 'like', '%' . $search . '%')
+                    ->orWhere('nis', 'like', '%' . $search . '%');
             });
         }
 
-        $siswa = $query->orderBy('deleted_at', 'desc')->paginate(10)
+        $siswa = $query->orderBy('deleted_at', 'desc')
+            ->paginate(10)
             ->appends($request->only(['search']));
 
         return view('wakasek.siswa.arsip', compact('siswa'));
@@ -382,41 +495,71 @@ class SiswaController extends Controller
     public function restore(string $nis)
     {
         try {
-            $siswa = siswa::onlyTrashed()->where('nis', $nis)->first();
+            $siswa = siswa::onlyTrashed()
+                ->where('nis', $nis)
+                ->first();
 
             if (! $siswa) {
-                return redirect()->route('siswa.arsip')->with('error', 'Siswa tidak ditemukan di arsip');
+                return redirect()
+                    ->route('siswa.arsip')
+                    ->with('error', 'Siswa tidak ditemukan di arsip');
             }
 
             $siswa->restore();
 
-            return redirect()->route('siswa.arsip')->with('success', 'Siswa berhasil dipulihkan');
+            ActivityLog::catat(
+                ActivityLog::KATEGORI_SISWA,
+                'Pulihkan Siswa',
+                "Siswa {$siswa->nama_siswa} (NIS {$siswa->nis}) dipulihkan dari arsip.",
+                $siswa->nis
+            );
+
+            return redirect()
+                ->route('siswa.arsip')
+                ->with('success', 'Siswa berhasil dipulihkan');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            Log::error('Gagal memulihkan siswa', [
+                'nis' => $nis,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
     public function forceDelete(string $nis)
     {
         try {
-            $siswa = siswa::onlyTrashed()->where('nis', $nis)->first();
+            $siswa = siswa::onlyTrashed()
+                ->where('nis', $nis)
+                ->first();
 
             if (! $siswa) {
-                return redirect()->route('siswa.arsip')->with('error', 'Siswa tidak ditemukan di arsip');
+                return redirect()
+                    ->route('siswa.arsip')
+                    ->with('error', 'Siswa tidak ditemukan di arsip');
             }
 
             $siswa->forceDelete();
 
-            return redirect()->route('siswa.arsip')->with('success', 'Siswa berhasil dihapus permanen');
+            return redirect()
+                ->route('siswa.arsip')
+                ->with('success', 'Siswa berhasil dihapus permanen');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
     public function destroyPenghargaan(string $nis, int $id)
     {
         try {
-            $penghargaanList = siswa_penghargaan::where('id', $id)->where('nis', $nis)->first();
+            $penghargaanList = siswa_penghargaan::where('id', $id)
+                ->where('nis', $nis)
+                ->first();
 
             if (! $penghargaanList) {
                 return back()->with('error', 'Penghargaan tidak ditemukan');
@@ -426,14 +569,18 @@ class SiswaController extends Controller
 
             return back()->with('success', 'Penghargaan berhasil dihapus');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
     public function destroyPeringatan(string $nis, int $id)
     {
         try {
-            $peringatanList = siswa_sp::where('id', $id)->where('nis', $nis)->first();
+            $peringatanList = siswa_sp::where('id', $id)
+                ->where('nis', $nis)
+                ->first();
 
             if (! $peringatanList) {
                 return back()->with('error', 'Peringatan tidak ditemukan');
@@ -443,7 +590,9 @@ class SiswaController extends Controller
 
             return back()->with('success', 'Peringatan berhasil dihapus');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -467,7 +616,9 @@ class SiswaController extends Controller
 
             return $pdf->download('Data_Siswa.pdf');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -476,13 +627,20 @@ class SiswaController extends Controller
         try {
             $siswa = siswa::where('nis', $nis)->firstOrFail();
 
-            $activity = ActivityLog::where('nis', $nis)->orderBy('created_at', 'desc')->get();
+            $activity = ActivityLog::where('nis', $nis)
+                ->orderBy('created_at', 'desc')
+                ->get();
 
-            $pdf = Pdf::loadView('Export.siswa.pdfActivity', compact('siswa', 'activity'));
+            $pdf = Pdf::loadView(
+                'Export.siswa.pdfActivity',
+                compact('siswa', 'activity')
+            );
 
             return $pdf->download('Data_Aktivitas_' . $nis . '.pdf');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan : ' . $e->getMessage());
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan : ' . $e->getMessage());
         }
     }
 
@@ -501,13 +659,20 @@ class SiswaController extends Controller
                 $query->where('id_kelas', $request->kelas);
             }
 
-            $siswa = $query->orderBy('id_kelas')->orderBy('nama_siswa')->get();
+            $siswa = $query->orderBy('id_kelas')
+                ->orderBy('nama_siswa')
+                ->get();
 
-            return Excel::download(new Siswa_ExportExcel($siswa), 'Data_Siswa.xlsx');
+            return Excel::download(
+                new Siswa_ExportExcel($siswa),
+                'Data_Siswa.xlsx'
+            );
         } catch (\Exception $e) {
             Log::error('Export Excel siswa gagal: ' . $e->getMessage());
 
-            return redirect()->back()->with('error', 'Gagal export Excel: ' . $e->getMessage());
+            return redirect()
+                ->back()
+                ->with('error', 'Gagal export Excel: ' . $e->getMessage());
         }
     }
 
@@ -515,7 +680,10 @@ class SiswaController extends Controller
     {
         $kelas = kelas::orderBy('id_kelas')->get();
 
-        return Excel::download(new Siswa_Template($kelas), 'Template_Import_Siswa.xlsx');
+        return Excel::download(
+            new Siswa_Template($kelas),
+            'Template_Import_Siswa.xlsx'
+        );
     }
 
     public function import(Request $request)
@@ -525,32 +693,43 @@ class SiswaController extends Controller
                 'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:10240',
             ], [
                 'file.required' => 'Pilih file Excel terlebih dahulu.',
-                'file.mimes'    => 'Format file harus .xlsx, .xls, atau .csv.',
-                'file.max'      => 'Ukuran file maksimal 10MB.',
+                'file.mimes' => 'Format file harus .xlsx, .xls, atau .csv.',
+                'file.max' => 'Ukuran file maksimal 10MB.',
             ]);
 
             $import = new Siswa_Import;
+
             Excel::import($import, $request->file('file'));
 
             $redirect = redirect()->back();
 
             if ($import->hasImported()) {
-                $redirect->with('success', 'Import selesai: ' . $import->summary());
+                $redirect->with(
+                    'success',
+                    'Import selesai: ' . $import->summary()
+                );
             } else {
-                $redirect->with('error', 'Tidak ada data yang diimport. ' . $import->summary());
+                $redirect->with(
+                    'error',
+                    'Tidak ada data yang diimport. ' . $import->summary()
+                );
             }
 
-            if (!empty($import->errors)) {
+            if (! empty($import->errors)) {
                 $redirect->with('import_errors', $import->errors);
             }
 
             return $redirect;
         } catch (ValidationException $e) {
-            return redirect()->back()->with('error', $e->validator->errors()->first());
+            return redirect()
+                ->back()
+                ->with('error', $e->validator->errors()->first());
         } catch (\Exception $e) {
             Log::error('Import siswa gagal: ' . $e->getMessage());
 
-            return redirect()->back()->with('error', 'Gagal import: ' . $e->getMessage());
+            return redirect()
+                ->back()
+                ->with('error', 'Gagal import: ' . $e->getMessage());
         }
     }
 
@@ -563,24 +742,42 @@ class SiswaController extends Controller
                 $kelasTujuan = null;
 
                 if (str_starts_with($kelasAsal->id_kelas, 'X-')) {
-                    $kelasTujuan = str_replace('X-', 'XI-', $kelasAsal->id_kelas);
+                    $kelasTujuan = str_replace(
+                        'X-',
+                        'XI-',
+                        $kelasAsal->id_kelas
+                    );
                 } elseif (str_starts_with($kelasAsal->id_kelas, 'XI-')) {
-                    $kelasTujuan = str_replace('XI-', 'XII-', $kelasAsal->id_kelas);
+                    $kelasTujuan = str_replace(
+                        'XI-',
+                        'XII-',
+                        $kelasAsal->id_kelas
+                    );
                 } elseif (str_starts_with($kelasAsal->id_kelas, 'XII-')) {
                     continue;
                 }
 
-                $kelasTujuanData = kelas::where('id_kelas', $kelasTujuan)->first();
+                $kelasTujuanData = kelas::where(
+                    'id_kelas',
+                    $kelasTujuan
+                )->first();
 
                 if ($kelasTujuanData) {
                     siswa::where('id_kelas', $kelasAsal->id_kelas)
-                        ->update(['id_kelas' => $kelasTujuanData->id_kelas]);
+                        ->update([
+                            'id_kelas' => $kelasTujuanData->id_kelas,
+                        ]);
                 }
             }
 
-            return back()->with('success', 'Semua siswa berhasil dinaikkan kelas');
+            return back()->with(
+                'success',
+                'Semua siswa berhasil dinaikkan kelas'
+            );
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -595,26 +792,39 @@ class SiswaController extends Controller
 
         try {
             return DB::transaction(function () use ($request, $user) {
-                // Kunci baris siswa agar request duplikat (double submit) diproses berurutan,
-                // sehingga pengecekan duplikat di bawah tidak lolos secara bersamaan.
-                $siswa = siswa::where('nis', $request->nis)->lockForUpdate()->first();
+                // Kunci baris siswa agar request duplikat diproses berurutan.
+                $siswa = siswa::where('nis', $request->nis)
+                    ->lockForUpdate()
+                    ->first();
 
-                if (!$siswa) {
-                    return redirect()->back()->with('error', 'Data siswa tidak ditemukan');
+                if (! $siswa) {
+                    return redirect()
+                        ->back()
+                        ->with('error', 'Data siswa tidak ditemukan');
                 }
 
-                // Tolak penilaian identik yang dikirim hampir bersamaan (race condition).
+                // Cegah pengiriman penilaian identik dalam waktu berdekatan.
                 $duplikat = penilaian::where('nis', $request->nis)
-                    ->where('id_aspekpenilaian', $request->id_aspekpenilaian)
+                    ->where(
+                        'id_aspekpenilaian',
+                        $request->id_aspekpenilaian
+                    )
                     ->where('created_at', '>=', now()->subSeconds(5))
                     ->exists();
 
                 if ($duplikat) {
-                    return redirect()->route('siswa.show', $request->nis)
-                        ->with('error', 'Penghargaan ini baru saja ditambahkan. Mohon tunggu sebentar.');
+                    return redirect()
+                        ->route('siswa.show', $request->nis)
+                        ->with(
+                            'error',
+                            'Penghargaan ini baru saja ditambahkan. Mohon tunggu sebentar.'
+                        );
                 }
 
-                $aspek = aspek_penilaian::findOrFail($request->id_aspekpenilaian);
+                $aspek = aspek_penilaian::findOrFail(
+                    $request->id_aspekpenilaian
+                );
+
                 $skor = (int) $aspek->indikator_poin;
                 $uraian = $aspek->uraian;
 
@@ -642,40 +852,79 @@ class SiswaController extends Controller
                     'updated_at' => now(),
                 ]);
 
-                return redirect()->route('siswa.show', $request->nis)
-                    ->with('success', 'Data penghargaan berhasil ditambahkan.');
+                return redirect()
+                    ->route('siswa.show', $request->nis)
+                    ->with(
+                        'success',
+                        'Data penghargaan berhasil ditambahkan.'
+                    );
             });
         } catch (\Exception $e) {
-            Log::error('Gagal menambah penghargaan: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            Log::error(
+                'Gagal menambah penghargaan: ' . $e->getMessage()
+            );
+
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
-    public function skoringPelanggaran(Request $request)
+        public function skoringPelanggaran(Request $request)
     {
+        $request->validate([
+            'nis' => 'required',
+            'id_aspekpenilaian' => 'required',
+        ]);
+
+        $user = Auth::user();
+
         try {
-            $request->validate([
-                'nis' => 'required',
-                'id_aspekpenilaian' => 'required',
-            ]);
+            return DB::transaction(function () use ($request, $user) {
+                // Kunci baris siswa agar request duplikat (double submit / spam klik)
+                // diproses berurutan, sehingga pengecekan duplikat di bawah tidak lolos bersamaan.
+                $siswa = siswa::where('nis', $request->nis)
+                    ->lockForUpdate()
+                    ->first();
 
-            $user = Auth::user();
-            $aspek = aspek_penilaian::findOrFail($request->id_aspekpenilaian);
-            $skor = (int) $aspek->indikator_poin;
-            $uraian = $aspek->uraian;
+                if (! $siswa) {
+                    return redirect()
+                        ->back()
+                        ->with('error', 'Data siswa tidak ditemukan');
+                }
 
-            penilaian::create([
-                'nis' => $request->nis,
-                'id_aspekpenilaian' => $request->id_aspekpenilaian,
-                'nip_bk' => $user->gurubk->nip_bk ?? null,
-                'nip_walikelas' => $user->walikelas->nip_walikelas ?? null,
-                'nip_wakasek' => $user->wakasek->nip_wakasek ?? null,
-                'created_at' => now(),
-            ]);
+                // Tolak penilaian identik (siswa + jenis pelanggaran sama)
+                // yang dikirim dalam waktu berdekatan.
+                $duplikat = penilaian::where('nis', $request->nis)
+                    ->where('id_aspekpenilaian', $request->id_aspekpenilaian)
+                    ->where('created_at', '>=', now()->subSeconds(10))
+                    ->exists();
 
-            $siswa = siswa::where('nis', $request->nis)->first();
+                if ($duplikat) {
+                    return redirect()
+                        ->route('siswa.show', $request->nis)
+                        ->with(
+                            'error',
+                            'Pelanggaran ini baru saja ditambahkan. Mohon tunggu sebentar.'
+                        );
+                }
 
-            if ($siswa) {
+                $aspek = aspek_penilaian::findOrFail(
+                    $request->id_aspekpenilaian
+                );
+
+                $skor = (int) $aspek->indikator_poin;
+                $uraian = $aspek->uraian;
+
+                penilaian::create([
+                    'nis' => $request->nis,
+                    'id_aspekpenilaian' => $request->id_aspekpenilaian,
+                    'nip_bk' => $user->gurubk->nip_bk ?? null,
+                    'nip_walikelas' => $user->walikelas->nip_walikelas ?? null,
+                    'nip_wakasek' => $user->wakasek->nip_wakasek ?? null,
+                    'created_at' => now(),
+                ]);
+
                 $siswa->poin_pelanggaran += $skor;
                 $siswa->poin_total -= $skor;
                 $siswa->save();
@@ -690,12 +939,17 @@ class SiswaController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
-            }
 
-            return redirect()->route('siswa.show', $request->nis)
-                ->with('success', 'Data Pelanggaran berhasil ditambahkan.');
+                return redirect()
+                    ->route('siswa.show', $request->nis)
+                    ->with('success', 'Data Pelanggaran berhasil ditambahkan.');
+            });
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            Log::error('Gagal menambah pelanggaran: ' . $e->getMessage());
+
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -726,10 +980,16 @@ class SiswaController extends Controller
                 'created_at' => now(),
             ]);
 
-            return redirect()->route('siswa.show', $request->nis)
-                ->with('success', 'Data Penanganan berhasil ditambahkan.');
+            return redirect()
+                ->route('siswa.show', $request->nis)
+                ->with(
+                    'success',
+                    'Data Penanganan berhasil ditambahkan.'
+                );
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 
@@ -746,10 +1006,13 @@ class SiswaController extends Controller
                 'status' => 'nonaktif',
             ]);
 
-            return redirect()->route('siswa.show', $nis)
+            return redirect()
+                ->route('siswa.show', $nis)
                 ->with('success', 'Siswa berhasil dinonaktifkan');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan');
         }
     }
 }
