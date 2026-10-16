@@ -1,6 +1,7 @@
 <div id="modal-create-pelanggaran" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[999999]">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 my-8 overflow-hidden">
-        <form action="{{ route('siswa.skoringPelanggaran', ['nis' => $siswa->nis]) }}" method="POST" class="p-6 space-y-5">
+        <form action="{{ route('siswa.skoringPelanggaran', ['nis' => $siswa->nis]) }}" method="POST" class="p-6 space-y-5"
+            onsubmit="if (this.dataset.terkirim) { return false; } this.dataset.terkirim = '1'; var b = this.querySelector('button[type=submit]'); b.disabled = true; b.textContent = 'Menyimpan...';">
             @csrf
 
             <div class="flex justify-between items-center border-b pb-4">
@@ -48,7 +49,7 @@
                     Batal
                 </button>
                 <button type="submit"
-                    class="px-8 py-3 rounded-lg bg-red-600 text-white hover:bg-red-700 transition font-medium shadow-lg">
+                    class="px-8 py-3 rounded-lg bg-red-600 text-white hover:bg-red-700 transition font-medium shadow-lg disabled:opacity-60 disabled:cursor-not-allowed">
                     Simpan Pelanggaran
                 </button>
             </div>

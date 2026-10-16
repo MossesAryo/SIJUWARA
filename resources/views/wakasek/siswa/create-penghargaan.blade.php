@@ -1,6 +1,7 @@
 <div id="modal-create-penghargaan" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[999999]">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 my-8 overflow-hidden">
-        <form id="form-create-penghargaan" action="{{ route('siswa.skoringPenghargaan', ['nis' => $siswa->nis]) }}" method="POST" class="p-6 space-y-5">
+        <form id="form-create-penghargaan" action="{{ route('siswa.skoringPenghargaan', ['nis' => $siswa->nis]) }}" method="POST" class="p-6 space-y-5"
+            onsubmit="if (this.dataset.terkirim) { return false; } this.dataset.terkirim = '1'; var b = this.querySelector('button[type=submit]'); b.disabled = true; b.textContent = 'Menyimpan...';">
             @csrf
 
             <div class="flex justify-between items-center border-b pb-4">
@@ -11,7 +12,7 @@
 
             <div class="space-y-5">
                 <input type="hidden" name="nis" value="{{ $siswa->nis }}">
-                
+
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Nama Siswa</label>
                     <div class="w-full border border-gray-300 rounded-lg px-4 py-3 bg-gray-50 text-gray-800 font-medium">
@@ -37,7 +38,8 @@
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Skor Penghargaan</label>
-                    <input type="text" id="skor_penghargaan" name="skor" readonly placeholder="Skor otomatis terisi"
+                    <input type="text" id="skor_penghargaan" name="skor" readonly
+                        placeholder="Skor otomatis terisi"
                         class="w-full border border-gray-300 rounded-lg px-4 py-3 bg-green-50 text-green-700 font-bold text-lg text-center">
                 </div>
             </div>

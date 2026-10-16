@@ -12,16 +12,18 @@ class wakasek extends Model
 {
     protected $table = 'wakasek';
     protected $primaryKey = 'nip_wakasek';
-    public $timestamps = false;
+    public $incrementing = false;
+    protected $keyType = 'int';
+    public $timestamps = true;
 
     protected $fillable = [
         'nip_wakasek',
-        'id_user',
+        'username',
         'nama_wakasek',
     ];
 
     public function user()
     {
-        return $this->belongsTo(user::class, 'id_user', 'id');
+        return $this->belongsTo(User::class, 'username', 'username');
     }
 }
