@@ -6,12 +6,15 @@ use Illuminate\Http\Request;
 use App\Models\walikelas;
 use App\Models\kelas;
 use App\Models\User;
+use App\Support\AkunStaf;
 
 use App\Exports\Walikelas_ExportExcel;
-use App\Exports\Walikelas_Template; // <-- Ditambahkan di sini
+use App\Exports\Walikelas_Template;
 use App\Imports\Walikelas_Import;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -27,17 +30,30 @@ class WalikelasController extends Controller
     public function index(Request $request)
     {
         $kelas = kelas::all();
-        $user = User::all();
 
         $query = walikelas::with('kelas');
 
-        // Search (nama atau nis)
+        // Search: nama, NIP, id kelas, atau nama kelas (mis. "X RPL 1")
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('nama_walikelas', 'like', '%' . $search . '%')
-                  ->orWhere('nip_walikelas', 'like', '%' . $search . '%')
-                  ->orWhere('id_kelas', 'like', '%' . $search . '%');
+            $search = trim($request->search);
+
+            // Escape karakter khusus LIKE (% _ \) supaya dicari apa adanya
+            $like = '%' . addcslashes($search, '\\%_') . '%';
+
+            // NIP sering diketik dengan spasi/tanda hubung: "1967 0409 2007"
+            $nipBersih = preg_replace('/[\s\-\.]/', '', $search);
+
+            $query->where(function ($q) use ($like, $nipBersih) {
+                $q->where('nama_walikelas', 'like', $like)
+                  ->orWhere('nip_walikelas', 'like', $like)
+                  ->orWhere('id_kelas', 'like', $like)
+                  ->orWhereHas('kelas', function ($k) use ($like) {
+                      $k->where('nama_kelas', 'like', $like);
+                  });
+
+                if ($nipBersih !== '' && ctype_digit($nipBersih)) {
+                    $q->orWhere('nip_walikelas', 'like', '%' . $nipBersih . '%');
+                }
             });
         }
 
@@ -46,11 +62,11 @@ class WalikelasController extends Controller
             $query->where('id_kelas', $request->kelas);
         }
 
-        // Paginate — sertakan semua query params yang relevan supaya pagination mempertahankan filter/search
+        // Paginate — sertakan search dan kelas supaya pagination mempertahankan keduanya
         $walikelas = $query->orderBy('nama_walikelas')->paginate(10)
-                      ->appends($request->only(['search', 'nip_walikelas', 'kelas', 'id_kelas']));
+                      ->appends($request->only(['search', 'kelas']));
 
-        return view('wakasek.walikelas.index', compact('walikelas', 'kelas', 'user'));
+        return view('wakasek.walikelas.index', compact('walikelas', 'kelas'));
     }
 
     /**
@@ -66,32 +82,61 @@ class WalikelasController extends Controller
      */
     public function store(Request $request)
     {
+        $request->merge([
+            'nip_walikelas'  => AkunStaf::bersihkanNip($request->input('nip_walikelas')),
+            'nama_walikelas' => AkunStaf::rapikanNama($request->input('nama_walikelas')),
+        ]);
+
+        // Validasi di luar try/catch supaya pesan per kolom tampil di form.
+        $data = $request->validate([
+            'nip_walikelas' => [
+                'required',
+                'regex:/^\d{1,18}$/',
+                function ($attribute, $value, \Closure $fail) {
+                    if (AkunStaf::nipTerpakai((string) $value)) {
+                        $fail('NIP sudah terdaftar pada data guru/pegawai lain.');
+                    }
+                },
+            ],
+            'nama_walikelas' => ['required', 'string', 'max:255'],
+            'id_kelas' => [
+                'required',
+                Rule::exists('kelas', 'id_kelas'),
+                Rule::unique('walikelas', 'id_kelas'),
+            ],
+        ], [
+            'nip_walikelas.required'  => 'NIP wajib diisi.',
+            'nip_walikelas.regex'     => 'NIP harus berupa angka (maksimal 18 digit).',
+            'nama_walikelas.required' => 'Nama walikelas wajib diisi.',
+            'nama_walikelas.max'      => 'Nama walikelas maksimal 255 karakter.',
+            'id_kelas.required'       => 'Kelas wajib dipilih.',
+            'id_kelas.exists'         => 'Kelas yang dipilih tidak valid.',
+            'id_kelas.unique'         => 'Kelas ini sudah memiliki walikelas.',
+        ]);
+
         try {
-            $request->validate([
-                'nip_walikelas' => 'required',
-                'nama_walikelas' => 'required',
-                'id_kelas' => 'required',
-            ]);
+            // Akun user dan data walikelas disimpan bersamaan atau tidak sama sekali.
+            DB::transaction(function () use ($data) {
+                $user = AkunStaf::buatUser(
+                    $data['nama_walikelas'],
+                    $data['nip_walikelas'],
+                    User::ROLE_WALIKELAS
+                );
 
-            // Buat user baru
-            $user = User::create([
-                'username' => $request->nama_walikelas,
-                'email' => $request->nama_walikelas . '@gmail.com',
-                'password' => bcrypt('password'), // Gantilah dengan password yang sesuai
-                'role' => 3,
-            ]);
-
-            Walikelas::create([
-                'nip_walikelas' => $request->nip_walikelas,
-                'username' => $user->username,
-                'nama_walikelas' => $request->nama_walikelas,
-                'id_kelas' => $request->id_kelas,
-            ]);
-
-            return redirect()->route('walikelas.index')->with('success', 'Data walikelas berhasil ditambahkan');
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+                walikelas::create([
+                    'nip_walikelas'  => $data['nip_walikelas'],
+                    'username'       => $user->username,
+                    'nama_walikelas' => $data['nama_walikelas'],
+                    'id_kelas'       => $data['id_kelas'],
+                ]);
+            });
+        } catch (\Throwable $e) {
+            return redirect()->back()->withInput()
+                ->with('error', AkunStaf::pesanGagal($e, 'Tambah walikelas'));
         }
+
+        return redirect()->route('walikelas.index')
+            ->with('success', 'Data walikelas berhasil ditambahkan. Login dengan NIP, password awal: ' . AkunStaf::PASSWORD_DEFAULT);
     }
 
     /**
@@ -149,7 +194,7 @@ class WalikelasController extends Controller
         try {
             $walikelas = Walikelas::where('nip_walikelas', $nip_walikelas)->firstOrFail();
             $user = User::where('username', $walikelas->username)->first();
-            
+
             if ($user) {
                 $user->delete();
             }

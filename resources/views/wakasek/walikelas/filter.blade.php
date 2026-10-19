@@ -9,7 +9,7 @@
                 </div>
                 <h2 class="text-xl font-semibold text-gray-800">Filter Walikelas</h2>
             </div>
-            <button onclick="closeModal('modal-filter')"
+            <button type="button" onclick="closeModal('modal-filter')"
                 class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full p-2 transition">
                 <i class="bi bi-x-lg text-lg"></i>
             </button>
@@ -17,7 +17,9 @@
 
         <!-- Form -->
         <form method="GET" class="p-6 space-y-6">
-            
+            {{-- Dijaga sinkron dengan kotak pencarian oleh walikelas.js --}}
+            <input type="hidden" id="filterSearch" name="search" value="{{ request('search') }}">
+
             <div class="space-y-2">
                 <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
                     <i class="bi bi-collection text-gray-500"></i> Kelas
@@ -57,7 +59,7 @@
         const openBtn = document.getElementById('openFilterModal');
         if (openBtn) {
             openBtn.addEventListener('click', function () {
-                openFilterModal(); 
+                openFilterModal();
             });
         }
     });
