@@ -1,115 +1,212 @@
+/**
+ * Halaman Data Walikelas (wakasek).
+ * Dipakai oleh resources/views/wakasek/walikelas/index.blade.php
+ */
 
-        function openModal(modalId) {
-            document.getElementById(modalId).classList.remove('hidden');
-            document.body.classList.add('modal-open');
+function openModal(modalId) {
+    document.getElementById(modalId).classList.remove('hidden');
+    document.body.classList.add('modal-open');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+    document.body.classList.remove('modal-open');
+}
+
+function openCreateModal() {
+    document.getElementById('nip_walikelas').value = '';
+    document.getElementById('nama_walikelas').value = '';
+    document.getElementById('id_kelas').value = '';
+
+    // Buang pesan error sisa percobaan sebelumnya
+    const errorBox = document.getElementById('create-errors');
+    if (errorBox) {
+        errorBox.remove();
+    }
+
+    openModal('modal-create');
+}
+
+function openFilterModal() {
+    openModal('modal-filter');
+}
+
+/**
+ * Bisa dipanggil dengan elemen tombol (memakai atribut data-*)
+ * atau dengan 4 argumen: (nip, username, nama, id_kelas).
+ */
+function openEditModal(a, b, c, d) {
+    let nip, username, nama, kelas;
+
+    if (a && a.dataset) {
+        nip = a.dataset.nip;
+        username = a.dataset.username;
+        nama = a.dataset.nama;
+        kelas = a.dataset.kelas;
+    } else {
+        nip = a;
+        username = b;
+        nama = c;
+        kelas = d;
+    }
+
+    document.getElementById('edit_nip_walikelas').value = nip;
+    document.getElementById('edit_username').value = username;
+    document.getElementById('edit_nama_walikelas').value = nama;
+    document.getElementById('edit_id_kelas').value = kelas;
+    document.getElementById('form-edit').action =
+        `/walikelas/${encodeURIComponent(nip)}/${encodeURIComponent(username)}/update`;
+
+    openModal('modal-edit');
+}
+
+/**
+ * Bisa dipanggil dengan elemen tombol (data-nip, data-nama)
+ * atau dengan 2 argumen: (nip, nama).
+ */
+function openDeleteModal(a, b) {
+    let nip, nama;
+
+    if (a && a.dataset) {
+        nip = a.dataset.nip;
+        nama = a.dataset.nama;
+    } else {
+        nip = a;
+        nama = b;
+    }
+
+    document.getElementById('delete-nama-walikelas').innerText = nama;
+    document.getElementById('form-delete').action = `/walikelas/${encodeURIComponent(nip)}`;
+    openModal('modal-delete');
+}
+
+// Klik di luar modal menutup modal
+document.addEventListener('click', function (event) {
+    ['modal-create', 'modal-edit', 'modal-delete', 'modal-filter'].forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (modal && !modal.classList.contains('hidden') && event.target === modal) {
+            closeModal(modalId);
         }
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
-            document.body.classList.remove('modal-open');
-        }
-        function openCreateModal() {
-            document.getElementById('nip_walikelas').value = '';
-            document.getElementById('nama_walikelas').value = '';
-            document.getElementById('id_kelas').value = '';
-            openModal('modal-create');
-        }
+    });
+});
 
-         function openFilterModal() {
-            openModal('modal-filter');
-        }
-
-
-        function openEditModal(nip_walikelas, username, nama_walikelas, id_kelas) {
-            document.getElementById('edit_nip_walikelas').value = nip_walikelas;
-            document.getElementById('edit_username').value = username;
-            document.getElementById('edit_nama_walikelas').value = nama_walikelas;
-            document.getElementById('edit_id_kelas').value = id_kelas;
-            document.getElementById('form-edit').action = `/walikelas/${nip_walikelas}/${username}/update`;
-            openModal('modal-edit');
-        }
-
-
-        function openDeleteModal(nip_walikelas, nama_walikelas) {
-            document.getElementById('delete-nama-walikelas').innerText = nama_walikelas;
-            document.getElementById('form-delete').action = `/walikelas/${nip_walikelas}`;
-            openModal('modal-delete');
-        }
-
-        
-        document.addEventListener('click', function(event) {
-            ['modal-create', 'modal-edit', 'modal-delete', 'modal-filter'].forEach(modalId => {
-                const modal = document.getElementById(modalId);
-                if (modal && !modal.classList.contains('hidden') && event.target === modal) {
-                    closeModal(modalId);
-                }
-            });
-        });
-
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                ['modal-create', 'modal-edit', 'modal-delete', 'modal-filter'].forEach(modalId => {
-                    const modal = document.getElementById(modalId);
-                    if (modal && !modal.classList.contains('hidden')) {
-                        closeModal(modalId);
-                    }
-                });
+// Tombol Escape menutup modal
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+        ['modal-create', 'modal-edit', 'modal-delete', 'modal-filter'].forEach(modalId => {
+            const modal = document.getElementById(modalId);
+            if (modal && !modal.classList.contains('hidden')) {
+                closeModal(modalId);
             }
         });
-        
-       document.addEventListener("DOMContentLoaded", () => {
-    const input = document.getElementById("inputSearch");
-    const tableBody = document.getElementById("tableBody");
-    const pagination = document.getElementById("pagination");
+    }
+});
+
+// Pencarian live + pagination tanpa reload
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('inputSearch');
+    const tableBody = document.getElementById('tableBody');
+    const pagination = document.getElementById('pagination');
+    const filterSearch = document.getElementById('filterSearch');
+
+    if (!input || !tableBody || !pagination) {
+        return;
+    }
 
     let debounceTimer = null;
+    let controller = null;
 
-    let lastPageUrl = window.location.href;
+    // Supaya tombol "Terapkan" di filter tidak menghapus kata kunci pencarian
+    function sinkronFilter() {
+        if (filterSearch) {
+            filterSearch.value = input.value.trim();
+        }
+    }
 
-    function fetchData(url) {
-        fetch(url)
-            .then(res => res.text())
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, "text/html");
+    // URL halaman sekarang (filter kelas tetap terbawa), page dikembalikan ke 1
+    function urlPencarian(keyword) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('page');
 
-                tableBody.innerHTML = doc.querySelector("#tableBody").innerHTML;
-                pagination.innerHTML = doc.querySelector("#pagination").innerHTML;
+        if (keyword) {
+            url.searchParams.set('search', keyword);
+        } else {
+            url.searchParams.delete('search');
+        }
 
-                activatePaginationLinks();
+        return url;
+    }
+
+    function muatData(url) {
+        // Batalkan request lama supaya hasil lama tidak menimpa hasil baru
+        if (controller) {
+            controller.abort();
+        }
+        const current = new AbortController();
+        controller = current;
+
+        tableBody.style.opacity = '0.5';
+
+        fetch(url.toString(), {
+            signal: current.signal,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error('HTTP ' + res.status);
+                }
+                return res.text();
             })
-            .catch(err => console.error("ERR:", err));
-    }
+            .then(html => {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const newBody = doc.querySelector('#tableBody');
+                const newPagination = doc.querySelector('#pagination');
 
-    function activatePaginationLinks() {
-        const links = document.querySelectorAll("#pagination a");
+                // Bukan halaman daftar (misalnya sesi habis dan dialihkan ke login)
+                if (!newBody || !newPagination) {
+                    window.location.href = url.toString();
+                    return;
+                }
 
-        links.forEach(link => {
-            link.addEventListener("click", function (e) {
-                e.preventDefault();
-
-                lastPageUrl = this.href;
-
-                fetchData(this.href);
+                tableBody.innerHTML = newBody.innerHTML;
+                pagination.innerHTML = newPagination.innerHTML;
+                window.history.replaceState(null, '', url.toString());
+                sinkronFilter();
+            })
+            .catch(err => {
+                if (err.name === 'AbortError') {
+                    return;
+                }
+                console.error('Gagal memuat data walikelas:', err);
+                window.location.href = url.toString();
+            })
+            .finally(() => {
+                if (controller === current) {
+                    tableBody.style.opacity = '';
+                }
             });
-        });
     }
 
-    activatePaginationLinks();
+    // Klik nomor halaman (delegasi, tetap jalan setelah isi pagination diganti)
+    pagination.addEventListener('click', event => {
+        const link = event.target.closest('a');
+        if (!link || !link.href) {
+            return;
+        }
 
-    input.addEventListener("keyup", function () {
+        event.preventDefault();
+        muatData(new URL(link.href));
+    });
+
+    input.addEventListener('input', () => {
         clearTimeout(debounceTimer);
+        sinkronFilter();
 
         debounceTimer = setTimeout(() => {
-            const query = input.value.trim();
-
-            if (query.length === 0) {
-                fetchData(lastPageUrl);
-                return;
-            }
-
-            const url = `/walikelas?search=${query}`;
-            fetchData(url);
-
-        }, 200);
+            muatData(urlPencarian(input.value.trim()));
+        }, 300);
     });
+
+    sinkronFilter();
 });

@@ -12,7 +12,7 @@
                 <h1 class="text-2xl font-bold gradient-text">Data Walikelas</h1>
                 <p class="text-gray-600 mt-1">Kelola data walikelas</p>
             </div>
-            <button onclick="openCreateModal()"
+            <button type="button" onclick="openCreateModal()"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
                 <i class="bi bi-plus-lg"></i>
                 Tambah Walikelas
@@ -61,7 +61,9 @@
             <div class="flex flex-col md:flex-row gap-2 items-center justify-between">
                 <div class="relative w-full md:w-64">
                     <i class="bi bi-search absolute left-3 top-2.5 text-gray-400"></i>
-                    <input id="inputSearch" type="text" placeholder="Cari Walikelas..."
+                    <input id="inputSearch" type="text" autocomplete="off"
+                        value="{{ request('search') }}"
+                        placeholder="Cari nama, NIP, atau kelas..."
                         class="pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full">
                 </div>
                 <div class="flex gap-2">
@@ -72,7 +74,7 @@
                             })
                             ->count();
                     @endphp
-                    <button id="openFilterModal"
+                    <button id="openFilterModal" type="button"
                         class="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5">
                         <i class="bi bi-funnel"></i> Filter
                         @if ($filterCount > 0)
@@ -81,9 +83,7 @@
                         @endif
                     </button>
 
-
-
-                    <button id="exportImportBtn"
+                    <button id="exportImportBtn" type="button"
                         class="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5">
                         <i class="bi bi-download"></i> Export / Import
                     </button>
@@ -135,8 +135,6 @@
                         </tr>
                     </thead>
 
-
-
                     <tbody id="tableBody" class="bg-white divide-y divide-gray-100">
                         @forelse ($walikelas as $item)
                             <tr class="hover:bg-gray-50 group">
@@ -156,18 +154,24 @@
                                     <div class="text-sm font-semibold text-gray-900">{{ $item->nama_walikelas }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="text-lg font-bold text-black">{{ $item->kelas->nama_kelas }}</span>
+                                    <span class="text-lg font-bold text-black">{{ $item->kelas->nama_kelas ?? '-' }}</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center gap-1">
-                                        <button
-                                            onclick="openEditModal('{{ $item->nip_walikelas }}', '{{ $item->username }}', '{{ $item->nama_walikelas }}', '{{ $item->id_kelas }}')"
+                                        <button type="button"
+                                            data-nip="{{ $item->nip_walikelas }}"
+                                            data-username="{{ $item->username }}"
+                                            data-nama="{{ $item->nama_walikelas }}"
+                                            data-kelas="{{ $item->id_kelas }}"
+                                            onclick="openEditModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full"
                                             title="Edit Walikelas">
                                             <i class="bi bi-pencil-square text-sm"></i>
                                         </button>
-                                        <button
-                                            onclick="openDeleteModal('{{ $item->nip_walikelas }}', '{{ $item->nama_walikelas }}')"
+                                        <button type="button"
+                                            data-nip="{{ $item->nip_walikelas }}"
+                                            data-nama="{{ $item->nama_walikelas }}"
+                                            onclick="openDeleteModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full"
                                             title="Hapus Walikelas">
                                             <i class="bi bi-trash text-sm"></i>
@@ -176,16 +180,19 @@
                                 </td>
                             </tr>
                         @empty
-
-
                             <tr>
                                 <td colspan="5" class="px-6 py-12 text-center">
                                     <div
                                         class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                         <i class="bi bi-people text-3xl text-gray-400"></i>
                                     </div>
-                                    <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada data Walikelas</h3>
-                                    <p class="text-gray-500">Tambahkan data walikelas untuk memulai.</p>
+                                    @if (request()->filled('search') || request()->filled('kelas'))
+                                        <h3 class="text-lg font-medium text-gray-900 mb-2">Data walikelas tidak ditemukan</h3>
+                                        <p class="text-gray-500">Coba kata kunci atau filter yang lain.</p>
+                                    @else
+                                        <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada data Walikelas</h3>
+                                        <p class="text-gray-500">Tambahkan data walikelas untuk memulai.</p>
+                                    @endif
                                 </td>
                             </tr>
                         @endforelse
