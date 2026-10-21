@@ -10,10 +10,16 @@
             </a>
             <h2 class="mt-2 text-lg font-bold text-gray-900">Detail Wakasek</h2>
         </div>
-        <a href="{{ route('superadmin.wakasek.edit', $wakasek->nip_wakasek) }}"
-            class="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
-            <i class="bi bi-pencil-square"></i> Edit
-        </a>
+        <div class="flex gap-2">
+            <a href="{{ route('superadmin.wakasek.edit', $wakasek->nip_wakasek) }}"
+                class="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
+                <i class="bi bi-pencil-square"></i> Edit
+            </a>
+            <a href="{{ route('superadmin.wakasek.hapus', $wakasek->nip_wakasek) }}"
+                class="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
+                <i class="bi bi-trash"></i> Hapus
+            </a>
+        </div>
     </div>
 
     <div class="max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">

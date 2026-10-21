@@ -13,7 +13,6 @@ use App\Http\Controllers\Auth\AuthController as AController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Guru_bkController;
 use App\Http\Controllers\IntervensiController;
-use App\Http\Controllers\JurusanController;
 use App\Http\Controllers\KetuaProgramController;
 use App\Http\Controllers\KelasController;
 use App\Http\Controllers\LaporanController;
@@ -28,6 +27,7 @@ use App\Http\Controllers\Skoring_PenghargaanController;
 use App\Http\Controllers\StatusIntervensiController;
 use App\Http\Controllers\SuperAdmin\ActivityLogController;
 use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
+use App\Http\Controllers\SuperAdmin\JurusanController as SuperAdminJurusanController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
 use App\Http\Controllers\SuperAdmin\RoleController;
 use App\Http\Controllers\SuperAdmin\SiswaArsipController;
@@ -234,13 +234,26 @@ Route::middleware(['auth', 'UserAccess:5'])
         Route::get('/wakasek/{nip}', [SuperAdminWakasekController::class, 'show'])->whereNumber('nip')->name('wakasek.show');
         Route::get('/wakasek/{nip}/edit', [SuperAdminWakasekController::class, 'edit'])->whereNumber('nip')->name('wakasek.edit');
         Route::put('/wakasek/{nip}', [SuperAdminWakasekController::class, 'update'])->whereNumber('nip')->name('wakasek.update');
+        Route::get('/wakasek/{nip}/hapus', [SuperAdminWakasekController::class, 'konfirmasiHapus'])->whereNumber('nip')->name('wakasek.hapus');
+        Route::delete('/wakasek/{nip}', [SuperAdminWakasekController::class, 'destroy'])->whereNumber('nip')->name('wakasek.destroy');
 
         // Manajemen Role
         Route::get('/role', [RoleController::class, 'index'])->name('role.index');
+        Route::get('/role/create', [RoleController::class, 'create'])->name('role.create');
+        Route::post('/role', [RoleController::class, 'store'])->name('role.store');
         Route::get('/role/{id}/edit', [RoleController::class, 'edit'])->whereNumber('id')->name('role.edit');
         Route::put('/role/{id}', [RoleController::class, 'update'])->whereNumber('id')->name('role.update');
         Route::get('/role/{id}/delete', [RoleController::class, 'konfirmasiHapus'])->whereNumber('id')->name('role.hapus');
         Route::delete('/role/{id}', [RoleController::class, 'destroy'])->whereNumber('id')->name('role.destroy');
+
+        // Manajemen Jurusan
+        Route::get('/jurusan', [SuperAdminJurusanController::class, 'index'])->name('jurusan.index');
+        Route::get('/jurusan/create', [SuperAdminJurusanController::class, 'create'])->name('jurusan.create');
+        Route::post('/jurusan', [SuperAdminJurusanController::class, 'store'])->name('jurusan.store');
+        Route::get('/jurusan/{id}/edit', [SuperAdminJurusanController::class, 'edit'])->where('id', '[A-Za-z0-9]+')->name('jurusan.edit');
+        Route::put('/jurusan/{id}', [SuperAdminJurusanController::class, 'update'])->where('id', '[A-Za-z0-9]+')->name('jurusan.update');
+        Route::get('/jurusan/{id}/hapus', [SuperAdminJurusanController::class, 'konfirmasiHapus'])->where('id', '[A-Za-z0-9]+')->name('jurusan.hapus');
+        Route::delete('/jurusan/{id}', [SuperAdminJurusanController::class, 'destroy'])->where('id', '[A-Za-z0-9]+')->name('jurusan.destroy');
 
         // Log Aktivitas
         Route::get('/log-aktivitas', [ActivityLogController::class, 'index'])->name('log.index');

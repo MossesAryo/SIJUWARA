@@ -13,9 +13,16 @@
         ];
     @endphp
 
-    <div class="mb-5">
-        <h2 class="text-lg font-bold text-gray-900">Manajemen Role</h2>
-        <p class="text-sm text-gray-400">Daftar akun pengguna beserta role-nya. Super Admin dapat mengubah dan menghapus akun.</p>
+    <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="text-lg font-bold text-gray-900">Manajemen Role</h2>
+            <p class="text-sm text-gray-400">Daftar akun pengguna beserta role-nya. Super Admin dapat menambah, mengubah, dan menghapus akun.</p>
+        </div>
+        <a href="{{ route('superadmin.role.create', in_array($roleDipilih, [2, 3, 4], true) ? ['role' => $roleDipilih] : []) }}"
+            class="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
+            style="background: linear-gradient(135deg, #4a7ab5, #1e3a5f);">
+            <i class="bi bi-plus-lg"></i> Tambah Akun
+        </a>
     </div>
 
     <div class="mb-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -23,7 +30,7 @@
         <span>
             Role tidak diubah dari halaman ini karena ditentukan oleh data profil pengguna
             (Wakasek, Guru BK, Wali Kelas, Ketua Program). NIP dan username juga dikunci.
-            Penambahan akun dilakukan lewat menu Wakasek atau halaman Wakasek.
+            Akun Wali Kelas, Guru BK, dan Ketua Program ditambahkan lewat tombol Tambah Akun; akun Wakasek lewat menu Wakasek.
             Menghapus akun akan ikut menghapus riwayat kerjanya, jadi periksa dulu di halaman konfirmasi.
         </span>
     </div>

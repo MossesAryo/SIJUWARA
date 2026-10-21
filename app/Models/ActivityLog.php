@@ -17,12 +17,14 @@ class ActivityLog extends Model
     public const KATEGORI_PELANGGARAN = 'Pelanggaran';
     public const KATEGORI_AKUN        = 'Akun';
     public const KATEGORI_SISWA       = 'Siswa';
+    public const KATEGORI_MASTER      = 'Data Master';
 
     public const DAFTAR_KATEGORI = [
         self::KATEGORI_APRESIASI,
         self::KATEGORI_PELANGGARAN,
         self::KATEGORI_AKUN,
         self::KATEGORI_SISWA,
+        self::KATEGORI_MASTER,
     ];
 
     public const LABEL_ROLE = [

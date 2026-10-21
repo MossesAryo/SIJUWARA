@@ -55,6 +55,8 @@
                                     class="rounded-lg p-2 text-gray-500 hover:bg-gray-100" title="Detail"><i class="bi bi-eye"></i></a>
                                 <a href="{{ route('superadmin.wakasek.edit', $w->nip_wakasek) }}"
                                     class="rounded-lg p-2 text-blue-600 hover:bg-blue-50" title="Edit"><i class="bi bi-pencil-square"></i></a>
+                                <a href="{{ route('superadmin.wakasek.hapus', $w->nip_wakasek) }}"
+                                    class="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Hapus"><i class="bi bi-trash"></i></a>
                             </td>
                         </tr>
                     @empty

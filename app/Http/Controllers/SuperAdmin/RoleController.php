@@ -69,6 +69,21 @@ class RoleController extends Controller
         ],
     ];
 
+    /**
+     * Role yang dapat dibuat lewat form Tambah Akun.
+     * Wakasek dibuat lewat menu Wakasek; Super Admin lewat php artisan make:superadmin.
+     */
+    private const ROLE_BISA_DIBUAT = [
+        User::ROLE_GURU_BK,
+        User::ROLE_WALIKELAS,
+        User::ROLE_KETUA_PROGRAM,
+    ];
+
+    /**
+     * Password awal semua akun baru yang dibuat lewat form Tambah Akun.
+     */
+    private const PASSWORD_AWAL = 'password123';
+
     public function index(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
@@ -146,6 +161,199 @@ class RoleController extends Controller
             'roleDipilih' => $roleDipilih,
             'idSaya' => $request->user()->id,
         ]);
+    }
+
+    /**
+     * Form tambah akun (Wali Kelas, Guru BK, Ketua Program).
+     */
+    public function create(Request $request)
+    {
+        $roleAwal = (int) $request->query('role');
+        $roleAwal = in_array($roleAwal, self::ROLE_BISA_DIBUAT, true)
+            ? $roleAwal
+            : null;
+
+        return view('superadmin.role.create', [
+            'daftarRole' => collect(self::ROLE_BISA_DIBUAT)
+                ->map(fn ($kode) => [
+                    'kode' => $kode,
+                    'label' => self::PETA[$kode]['label'],
+                ])
+                ->all(),
+            'roleAwal' => $roleAwal,
+            'passwordAwal' => self::PASSWORD_AWAL,
+            'daftarKelas' => kelas::where('id_kelas', '!=', 'ALUMNI')
+                ->orderBy('id_kelas')
+                ->get(['id_kelas', 'nama_kelas']),
+            // Kelas yang sudah punya wali kelas (satu kelas hanya satu wali).
+            'kelasTerisi' => DB::table('walikelas')
+                ->pluck('id_kelas')
+                ->all(),
+            'daftarJurusan' => jurusan::orderBy('nama_jurusan')->get(),
+            // Jurusan yang sudah punya ketua program (satu jurusan hanya satu kaprog).
+            'jurusanTerisi' => DB::table('ketua_program')
+                ->pluck('id_jurusan')
+                ->all(),
+        ]);
+    }
+
+    /**
+     * Simpan akun baru beserta profilnya dan catat aktivitasnya.
+     */
+    public function store(Request $request)
+    {
+        $role = (int) $request->input('role');
+
+        $rules = [
+            'role' => ['required', Rule::in(self::ROLE_BISA_DIBUAT)],
+            'nip' => [
+                'required',
+                'regex:/^\d{5,18}$/',
+                function ($attribute, $value, $fail) {
+                    if ($this->nipSudahDipakai((string) $value)) {
+                        $fail('NIP sudah dipakai oleh pengguna lain.');
+                    }
+                },
+            ],
+            'nama' => ['required', 'string', 'max:255'],
+            'username' => [
+                'required',
+                'string',
+                'max:255',
+                'regex:/^[A-Za-z0-9._-]+$/',
+                // Tidak boleh angka saja: login memeriksa NIP lebih dulu.
+                'not_regex:/^\d+$/',
+                'unique:users,username',
+            ],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                'unique:users,email',
+            ],
+        ];
+
+        if ($role === User::ROLE_WALIKELAS) {
+            $rules['id_kelas'] = [
+                'required',
+                'string',
+                'exists:kelas,id_kelas',
+                'not_in:ALUMNI',
+                'unique:walikelas,id_kelas',
+            ];
+        }
+
+        if ($role === User::ROLE_KETUA_PROGRAM) {
+            $rules['id_jurusan'] = [
+                'required',
+                'string',
+                'exists:jurusan,id_jurusan',
+                'unique:ketua_program,id_jurusan',
+            ];
+        }
+
+        if ($role === User::ROLE_GURU_BK) {
+            $rules['kelas'] = ['nullable', 'array'];
+            $rules['kelas.*'] = [
+                'string',
+                'exists:kelas,id_kelas',
+                'not_in:ALUMNI',
+            ];
+        }
+
+        $data = $request->validate(
+            $rules,
+            $this->pesan(),
+            $this->atribut()
+        );
+
+        $cfg = self::PETA[$role];
+
+        try {
+            DB::transaction(function () use ($data, $role, $cfg) {
+                User::create([
+                    'username' => $data['username'],
+                    'email' => $data['email'],
+                    // Password awal default; di-hash otomatis oleh cast 'hashed' pada model User.
+                    'password' => self::PASSWORD_AWAL,
+                    'role' => $role,
+                ]);
+
+                $now = now();
+
+                $profil = [
+                    $cfg['nip'] => $data['nip'],
+                    'username' => $data['username'],
+                    $cfg['nama'] => $data['nama'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+                if ($role === User::ROLE_WALIKELAS) {
+                    $profil['id_kelas'] = $data['id_kelas'];
+                }
+
+                if ($role === User::ROLE_KETUA_PROGRAM) {
+                    $profil['id_jurusan'] = $data['id_jurusan'];
+                }
+
+                DB::table($cfg['tabel'])->insert($profil);
+
+                if ($role === User::ROLE_GURU_BK) {
+                    $this->sinkronKelasGuruBk(
+                        (int) $data['nip'],
+                        $data['kelas'] ?? []
+                    );
+                }
+            });
+        } catch (Throwable $e) {
+            Log::error('Gagal membuat akun', [
+                'role' => $role,
+                'username' => $data['username'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()
+                ->withInput($request->except(
+                    'password',
+                    'password_confirmation'
+                ))
+                ->with(
+                    'error',
+                    'Akun gagal dibuat. Tidak ada data yang tersimpan, silakan coba lagi.'
+                );
+        }
+
+        $keterangan = match ($role) {
+            User::ROLE_WALIKELAS => ', kelas ' . $data['id_kelas'],
+            User::ROLE_KETUA_PROGRAM => ', jurusan ' . $data['id_jurusan'],
+            User::ROLE_GURU_BK => ', kelas binaan ['
+                . implode(', ', array_values(array_unique($data['kelas'] ?? [])))
+                . ']',
+            default => '',
+        };
+
+        // Password tidak dicatat di log.
+        ActivityLog::catat(
+            ActivityLog::KATEGORI_AKUN,
+            'Tambah Akun',
+            'Akun ' . $cfg['label'] . ' "' . $data['username']
+                . '" dibuat (NIP ' . $data['nip']
+                . ', nama ' . $data['nama']
+                . $keterangan . ').'
+        );
+
+        return redirect()
+            ->route('superadmin.role.index', [
+                'role' => $role,
+                'q' => $data['username'],
+            ])
+            ->with(
+                'success',
+                'Akun ' . $cfg['label'] . ' "' . $data['nama']
+                    . '" berhasil dibuat. Login memakai NIP dan password awal: '
+                    . self::PASSWORD_AWAL . '.'
+            );
     }
 
     /**
@@ -549,6 +757,29 @@ class RoleController extends Controller
     }
 
     /**
+     * Periksa apakah NIP sudah dipakai di salah satu tabel profil.
+     * Login mencari NIP di semua tabel profil, jadi NIP harus unik lintas role.
+     */
+    private function nipSudahDipakai(string $nip): bool
+    {
+        foreach (self::PETA as $cfg) {
+            if ($cfg['tabel'] === null) {
+                continue;
+            }
+
+            if (
+                DB::table($cfg['tabel'])
+                    ->where($cfg['nip'], $nip)
+                    ->exists()
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Ambil konfigurasi role dan profil akun.
      */
     private function ambilProfil(User $user): array
@@ -709,6 +940,9 @@ class RoleController extends Controller
     private function atribut(): array
     {
         return [
+            'role' => 'Role',
+            'nip' => 'NIP',
+            'username' => 'Username',
             'email' => 'Email',
             'password' => 'Password',
             'nama' => 'Nama',
@@ -730,6 +964,13 @@ class RoleController extends Controller
             'confirmed' => 'Konfirmasi password tidak cocok.',
             'exists' => ':attribute yang dipilih tidak valid.',
             'id_kelas.unique' => 'Kelas ini sudah memiliki wali kelas lain.',
+            'role.required' => 'Pilih role terlebih dahulu.',
+            'role.in' => 'Role yang dipilih tidak valid.',
+            'nip.regex' => 'NIP harus berupa angka 5 sampai 18 digit.',
+            'username.regex' => 'Username hanya boleh huruf, angka, titik, garis bawah, dan strip (tanpa spasi).',
+            'username.not_regex' => 'Username tidak boleh hanya berisi angka.',
+            'id_kelas.not_in' => 'Kelas ALUMNI tidak dapat dipilih.',
+            'kelas.*.not_in' => 'Kelas ALUMNI tidak dapat dipilih.',
             'id_jurusan.unique' => 'Jurusan ini sudah memiliki ketua program lain.',
         ];
     }
