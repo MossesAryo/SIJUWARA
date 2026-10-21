@@ -3,6 +3,7 @@
         ['label' => 'Dashboard',         'icon' => 'bi-speedometer2', 'route' => 'superadmin.dashboard',          'active' => 'superadmin.dashboard'],
         ['label' => 'Manajemen Wakasek', 'icon' => 'bi-person-badge', 'route' => 'superadmin.wakasek.index',      'active' => 'superadmin.wakasek.*'],
         ['label' => 'Manajemen Role',    'icon' => 'bi-shield-lock',  'route' => 'superadmin.role.index',         'active' => 'superadmin.role.*'],
+        ['label' => 'Manajemen Jurusan', 'icon' => 'bi-mortarboard',  'route' => 'superadmin.jurusan.index',      'active' => 'superadmin.jurusan.*'],
         ['label' => 'Pemantauan Role',   'icon' => 'bi-activity',     'route' => 'superadmin.pemantauan.index',   'active' => 'superadmin.pemantauan.*'],
         ['label' => 'Tong Sampah Siswa', 'icon' => 'bi-archive',      'route' => 'superadmin.siswa-arsip.index',  'active' => 'superadmin.siswa-arsip.*'],
         ['label' => 'Log Aktivitas',     'icon' => 'bi-clock-history', 'route' => 'superadmin.log.index',         'active' => 'superadmin.log.*'],

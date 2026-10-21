@@ -9,6 +9,7 @@ use App\Models\wakasek;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -217,6 +218,172 @@ class WakasekController extends Controller
                 'success',
                 'Data Wakasek berhasil diperbarui.'
             );
+    }
+
+    /**
+     * Halaman konfirmasi hapus akun Wakasek.
+     */
+    public function konfirmasiHapus(string $nip)
+    {
+        $wakasek = $this->cariWakasek($nip);
+
+        return view('superadmin.wakasek.delete', [
+            'wakasek' => $wakasek,
+            'dampak' => $this->hitungDampak($wakasek->nip_wakasek),
+            'wakasekTerakhir' => wakasek::count() <= 1,
+        ]);
+    }
+
+    /**
+     * Hapus akun Wakasek beserta profil dan riwayatnya, lalu catat aktivitasnya.
+     */
+    public function destroy(Request $request, string $nip)
+    {
+        $request->validate(
+            ['konfirmasi' => ['accepted']],
+            ['accepted' => 'Centang pernyataan persetujuan sebelum menghapus.']
+        );
+
+        $wakasek = $this->cariWakasek($nip);
+        $user = $wakasek->user;
+
+        // Akun yang sedang dipakai tidak boleh dihapus (pengaman, walau Wakasek bukan Super Admin).
+        if ($user && $user->id === $request->user()->id) {
+            return redirect()
+                ->route('superadmin.wakasek.index')
+                ->with('error', 'Akun yang sedang Anda pakai tidak dapat dihapus.');
+        }
+
+        $nipWakasek = $wakasek->nip_wakasek;
+        $nama = $wakasek->nama_wakasek;
+        $username = $wakasek->username;
+        $dampak = $this->hitungDampak($nipWakasek);
+
+        // Simpan path file bukti sebelum data terkait terhapus melalui cascade.
+        $fileBukti = DB::table('bukti_pembinaan')
+            ->whereIn(
+                'intervensi_id',
+                DB::table('intervensi')
+                    ->where('nip_wakasek', $nipWakasek)
+                    ->select('id_intervensi')
+            )
+            ->pluck('file')
+            ->all();
+
+        try {
+            DB::transaction(function () use ($user, $nipWakasek) {
+                if ($user) {
+                    // Pertahankan identitas pelaku pada log lama.
+                    DB::table('activity_logs')
+                        ->where('user_id', $user->id)
+                        ->whereNull('actor_username')
+                        ->update([
+                            'actor_username' => $user->username,
+                            'actor_role' => (int) $user->role,
+                        ]);
+                }
+
+                DB::table('wakasek')
+                    ->where('nip_wakasek', $nipWakasek)
+                    ->delete();
+
+                if ($user) {
+                    $user->tokens()->delete();
+                    $user->delete();
+                }
+            });
+        } catch (Throwable $e) {
+            Log::error('Gagal menghapus akun Wakasek', [
+                'nip' => $nip,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('superadmin.wakasek.index')
+                ->with(
+                    'error',
+                    'Akun Wakasek gagal dihapus. Tidak ada data yang berubah, silakan coba lagi.'
+                );
+        }
+
+        // Bersihkan file bukti pembinaan dari disk (gagal hapus file tidak membatalkan penghapusan data).
+        foreach ($fileBukti as $path) {
+            try {
+                Storage::disk('public')->delete($path);
+            } catch (Throwable $e) {
+                Log::warning('File bukti pembinaan gagal dihapus', [
+                    'file' => $path,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Paksa logout jika akun masih punya sesi aktif (database session).
+        if ($user) {
+            $this->hapusSesi($user->id);
+        }
+
+        $ringkasDampak = collect($dampak)
+            ->filter()
+            ->map(fn ($jumlah, $namaData) => "{$namaData} {$jumlah}")
+            ->implode(', ');
+
+        ActivityLog::catat(
+            ActivityLog::KATEGORI_AKUN,
+            'Hapus Akun',
+            'Akun Wakasek "' . $username . '", NIP ' . $nipWakasek
+                . ', nama ' . $nama . '. Ikut terhapus: '
+                . ($ringkasDampak !== '' ? $ringkasDampak : 'tidak ada riwayat')
+                . '.'
+        );
+
+        return redirect()
+            ->route('superadmin.wakasek.index')
+            ->with(
+                'success',
+                'Akun Wakasek "' . $nama . '" berhasil dihapus.'
+            );
+    }
+
+    /**
+     * Hitung data yang ikut terhapus bersama akun Wakasek.
+     */
+    private function hitungDampak(int|string $nip): array
+    {
+        return [
+            'Penilaian' => DB::table('penilaian')
+                ->where('nip_wakasek', $nip)
+                ->count(),
+
+            'Catatan' => DB::table('catatan')
+                ->where('nip_wakasek', $nip)
+                ->count(),
+
+            'Intervensi' => DB::table('intervensi')
+                ->where('nip_wakasek', $nip)
+                ->count(),
+
+            'Bukti pembinaan' => DB::table('bukti_pembinaan')
+                ->whereIn(
+                    'intervensi_id',
+                    DB::table('intervensi')
+                        ->where('nip_wakasek', $nip)
+                        ->select('id_intervensi')
+                )
+                ->count(),
+        ];
+    }
+
+    /**
+     * Hapus sesi login akun jika menggunakan database session.
+     */
+    private function hapusSesi(int $userId): void
+    {
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $userId)
+                ->delete();
+        }
     }
 
     private function cariWakasek(string $nip): wakasek
