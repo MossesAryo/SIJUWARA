@@ -53,14 +53,25 @@ class TahunAjaranController extends Controller
 
             $selisih = $tahunBaru->id - $tahunSekarang->id;
 
-            DB::transaction(function () use ($selisih, $tahunSekarang, $tahunBaru) {
+            $siswaNis = $request->input('siswa_nis');
+            $siswaNisTerpilih = [];
+
+            if (is_string($siswaNis)) {
+                $siswaNisTerpilih = array_values(array_filter(array_map('trim', explode(',', $siswaNis)), fn ($nis) => $nis !== ''));
+            } elseif (is_array($siswaNis)) {
+                $siswaNisTerpilih = array_values(array_filter($siswaNis, fn ($nis) => $nis !== ''));
+            }
+
+            $siswaNisUntukDipindahkan = $siswaNisTerpilih;
+
+            DB::transaction(function () use ($selisih, $tahunSekarang, $tahunBaru, $siswaNisUntukDipindahkan) {
                 if ($selisih > 0) {
                     for ($i = 0; $i < $selisih; $i++) {
-                        $this->naikKelas();
+                        $this->naikKelas($siswaNisUntukDipindahkan);
                     }
                 } elseif ($selisih < 0) {
                     for ($i = 0; $i < abs($selisih); $i++) {
-                        $this->turunKelas();
+                        $this->turunKelas($siswaNisUntukDipindahkan);
                     }
                 }
 
@@ -74,23 +85,27 @@ class TahunAjaranController extends Controller
         }
     }
 
-    private function naikKelas(): void
+    private function naikKelas(array $siswaNis = []): void
     {
         try {
+            // Hanya siswa yang dipilih yang diproses.
+            $siswaTerpilih = siswa::where('status', 'aktif')
+                ->whereIn('nis', $siswaNis);
+
             // Proses XII dulu → alumni
-            siswa::where('status', 'aktif')
+            (clone $siswaTerpilih)
                 ->where('id_kelas', 'like', 'XII-%')
                 ->each(function ($s) {
                     [$tingkat, $jurusan, $nomor] = array_pad(explode('-', $s->id_kelas, 3), 3, null);
                     if (!$jurusan || !$nomor) return;
 
-                    $s->id_kelas = null;
+                    $s->id_kelas = 'ALUMNI';
                     $s->status   = 'alumni';
                     $s->save();
                 });
 
             // Lalu XI → XII
-            siswa::where('status', 'aktif')
+            (clone $siswaTerpilih)
                 ->where('id_kelas', 'like', 'XI-%')
                 ->each(function ($s) {
                     [$tingkat, $jurusan, $nomor] = array_pad(explode('-', $s->id_kelas, 3), 3, null);
@@ -101,7 +116,7 @@ class TahunAjaranController extends Controller
                 });
 
             // Terakhir X → XI
-            siswa::where('status', 'aktif')
+            (clone $siswaTerpilih)
                 ->where('id_kelas', 'like', 'X-%')
                 ->each(function ($s) {
                     [$tingkat, $jurusan, $nomor] = array_pad(explode('-', $s->id_kelas, 3), 3, null);
@@ -115,12 +130,16 @@ class TahunAjaranController extends Controller
         }
     }
 
-    private function turunKelas(): void
+    private function turunKelas(array $siswaNis = []): void
     {
         try {
+            // Hanya siswa yang dipilih yang diproses.
+            $siswaTerpilih = siswa::where('status', 'aktif')
+                ->whereIn('nis', $siswaNis);
+
             // Proses X dulu → tidak berubah, skip
             // XI → X dulu
-            siswa::where('status', 'aktif')
+            (clone $siswaTerpilih)
                 ->where('id_kelas', 'like', 'XI-%')
                 ->each(function ($s) {
                     [$tingkat, $jurusan, $nomor] = array_pad(explode('-', $s->id_kelas, 3), 3, null);
@@ -131,7 +150,7 @@ class TahunAjaranController extends Controller
                 });
 
             // Lalu XII → XI
-            siswa::where('status', 'aktif')
+            (clone $siswaTerpilih)
                 ->where('id_kelas', 'like', 'XII-%')
                 ->each(function ($s) {
                     [$tingkat, $jurusan, $nomor] = array_pad(explode('-', $s->id_kelas, 3), 3, null);
