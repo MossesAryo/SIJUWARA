@@ -99,7 +99,12 @@ class SiswaController extends Controller
         }
 
         if ($request->filled('kelas') && $user->role != '3') {
-            $query->where('id_kelas', $request->kelas);
+            if ($request->kelas === 'ALUMNI') {
+                // Data alumni lama mungkin belum punya id_kelas ALUMNI.
+                $query->where('status', 'alumni');
+            } else {
+                $query->where('id_kelas', $request->kelas);
+            }
         }
 
         if ($request->filled('status')) {
