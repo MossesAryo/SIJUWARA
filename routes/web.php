@@ -210,11 +210,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/catatan', [listcatatanController::class, 'index'])->name('catatan.index');
     Route::put('/catatan/{id}', [listcatatanController::class, 'update'])->name('catatan.update');
 
-    // Tahun Ajaran
+    // Tahun Ajaran (proses ubah data hanya untuk Wakasek & Super Admin)
     Route::get('/tahun-ajaran', [TahunAjaranController::class, 'index'])->name('tahun_ajaran.index');
-    Route::post('/tahun-ajaran/naik', [TahunAjaranController::class, 'NaikKelas'])->name('tahun_ajaran.naik');
-    Route::post('/tahun-ajaran/turun', [TahunAjaranController::class, 'TurunKelas'])->name('tahun_ajaran.turun');
-    Route::post('/tahun-ajaran/update', [TahunAjaranController::class, 'update'])->name('tahun_ajaran.update');
+    Route::post('/tahun-ajaran/update', [TahunAjaranController::class, 'update'])
+        ->middleware('UserAccess:1,5')
+        ->name('tahun_ajaran.update');
 });
 
 // Super Admin (role 5)
