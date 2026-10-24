@@ -42,14 +42,14 @@ class IntervensiController extends Controller
                 $siswaList->where('id_kelas', $kelasWalikelas);
                 $selectedKelas   = $kelasWalikelas;
                 $kelasEntity     = kelas::where('id_kelas', $kelasWalikelas)->first();
-                $selectedJurusan = $kelasEntity->jurusan ?? null;
+                $selectedJurusan = $kelasEntity->id_jurusan ?? null;
                 $kelas           = kelas::where('id_kelas', $kelasWalikelas)->get();
             }
         } elseif ($user->role == 4) {
             $ketua = ketua_program::where('username', $user->username)->first();
-            if ($ketua && $ketua->jurusan) {
-                $selectedJurusan = $ketua->jurusan;
-                $kelas           = kelas::where('jurusan', $selectedJurusan)->get();
+            if ($ketua && $ketua->id_jurusan) {
+                $selectedJurusan = $ketua->id_jurusan;
+                $kelas           = kelas::where('id_jurusan', $selectedJurusan)->get();
             }
         }
 
@@ -66,7 +66,7 @@ class IntervensiController extends Controller
             $query->whereHas('siswa', fn ($q) => $q->where('id_kelas', $kelasWalikelas));
         }
         if ($user->role == 4 && $selectedJurusan) {
-            $query->whereHas('siswa', fn ($q) => $q->whereHas('kelas', fn ($k) => $k->where('jurusan', $selectedJurusan)));
+            $query->whereHas('siswa', fn ($q) => $q->whereHas('kelas', fn ($k) => $k->where('id_jurusan', $selectedJurusan)));
         }
 
         if ($request->filled('search')) {
@@ -83,7 +83,7 @@ class IntervensiController extends Controller
 
         if ($request->filled('jurusan')) {
             $jur = $request->jurusan;
-            $query->whereHas('siswa', fn ($q) => $q->whereHas('kelas', fn ($q2) => $q2->where('jurusan', $jur)));
+            $query->whereHas('siswa', fn ($q) => $q->whereHas('kelas', fn ($q2) => $q2->where('id_jurusan', $jur)));
         }
 
         if ($request->filled('status')) {
@@ -319,8 +319,8 @@ class IntervensiController extends Controller
             }
         } elseif ($user && $user->role == 4) {
             $ketua = ketua_program::where('username', $user->username)->first();
-            if ($ketua && $ketua->jurusan) {
-                $request->merge(['jurusan' => $ketua->jurusan]);
+            if ($ketua && $ketua->id_jurusan) {
+                $request->merge(['jurusan' => $ketua->id_jurusan]);
                 $request->request->remove('kelas');
             }
         }
@@ -373,8 +373,8 @@ class IntervensiController extends Controller
             }
         } elseif ($user && $user->role == 4) {
             $ketua = ketua_program::where('username', $user->username)->first();
-            if ($ketua && $ketua->jurusan) {
-                $request->merge(['jurusan' => $ketua->jurusan]);
+            if ($ketua && $ketua->id_jurusan) {
+                $request->merge(['jurusan' => $ketua->id_jurusan]);
                 $request->request->remove('kelas');
             }
         }
@@ -457,7 +457,7 @@ class IntervensiController extends Controller
         if ($walikelas) {
             $nipWalikelas = $walikelas->nip_walikelas;
         } else {
-            $gurubk = \App\Models\gurubk::where('nip_bk', $nip)->first();
+            $gurubk = \App\Models\guru_bk::where('nip_bk', $nip)->first();
             if ($gurubk) {
                 $nipBk = $gurubk->nip_bk;
             }

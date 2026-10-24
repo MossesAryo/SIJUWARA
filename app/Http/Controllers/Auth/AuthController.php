@@ -68,11 +68,11 @@ class AuthController extends Controller
         }
 
         if (!$user) {
-            return back()->withErrors(['nip' => 'NIP tidak ditemukan']);
+            return back()->withInput($request->only('nip'))->withErrors(['nip' => 'NIP atau password salah']);
         }
 
         if (!Hash::check($request->password, $user->password)) {
-            return back()->withErrors(['password' => 'Password salah']);
+            return back()->withInput($request->only('nip'))->withErrors(['nip' => 'NIP atau password salah']);
         }
 
         Auth::login($user);
@@ -85,9 +85,12 @@ class AuthController extends Controller
         return redirect()->route('wakasek.dashboard')->with('success', 'Berhasil login');
     }
 
-    public function logout()
+    public function logout(Request $request)
     {
         Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
         return redirect()->route('login');
     }
 }

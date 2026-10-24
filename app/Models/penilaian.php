@@ -27,7 +27,7 @@ class penilaian extends Model
 
     public function wakasek()
     {
-        return $this->belongsTo('App\Models\Wakasek', 'nip_wakasek');
+        return $this->belongsTo(wakasek::class, 'nip_wakasek', 'nip_wakasek');
     }
     public function walikelas()
     {

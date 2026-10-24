@@ -29,6 +29,11 @@ class Guru_Bk_Import implements ToModel, WithHeadingRow
             return null;
         }
 
+        // Baris contoh dari template dilewati.
+        if ($this->isContoh($row['username'] ?? null) || $this->isContoh($row['nama_guru_bk'] ?? null)) {
+            return null;
+        }
+
         $user = User::Create(
             [
                 'username' => $row['username'],
@@ -39,10 +44,15 @@ class Guru_Bk_Import implements ToModel, WithHeadingRow
         );
 
         return new guru_bk([
-       
+
             'nip_bk' => $row['nip'],
             'username'      => $user->username,
             'nama_guru_bk' => $row['nama_guru_bk'],
         ]);
+    }
+
+    private function isContoh($teks): bool
+    {
+        return is_string($teks) && str_starts_with(mb_strtolower(trim($teks)), 'contoh');
     }
 }

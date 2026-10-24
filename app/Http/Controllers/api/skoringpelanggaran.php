@@ -48,16 +48,6 @@ class skoringpelanggaran extends Controller
             $skor = (int) $aspek->indikator_poin;
             $uraian = $aspek->uraian;
 
-            $penilaian = penilaian::create([
-                'id_penilaian' => $request->id_penilaian,
-                'nis' => $request->nis,
-                'id_aspekpenilaian' => $request->id_aspekpenilaian,
-                'nip_bk' => $user->gurubk->nip_bk ?? null,
-                'nip_walikelas' => $user->walikelas->nip_walikelas ?? null,
-                'nip_wakasek' => $user->wakasek->nip_wakasek ?? null,
-                'created_at' => now(),
-            ]);
-
             $siswa = siswa::where('nis', $request->nis)->first();
             if (!$siswa) {
                 return response()->json([
@@ -66,20 +56,36 @@ class skoringpelanggaran extends Controller
                 ], 404);
             }
 
-            $siswa->poin_pelanggaran += $skor;
-            $siswa->poin_total -= $skor;
-            $siswa->save();
+            // Penilaian, poin siswa, dan log disimpan atomik: gagal sebagian = batal semua.
+            $penilaian = DB::transaction(function () use ($request, $user, $siswa, $skor, $uraian) {
+                $penilaian = penilaian::create([
+                    'id_penilaian' => $request->id_penilaian,
+                    'nis' => $request->nis,
+                    'id_aspekpenilaian' => $request->id_aspekpenilaian,
+                    'nip_bk' => $user->gurubk->nip_bk ?? null,
+                    'nip_walikelas' => $user->walikelas->nip_walikelas ?? null,
+                    'nip_wakasek' => $user->wakasek->nip_wakasek ?? null,
+                    'created_at' => now(),
+                ]);
 
-            DB::table('activity_logs')->insert([
-                'user_id' => $user->id ?? null,
-                'nis' => $siswa->nis,
-                'kategori' => 'Pelanggaran',
-                'activity' => 'Tambah Pelanggaran',
-                'description' => $uraian,
-                'point' => $skor,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+
+                $siswa->poin_pelanggaran += $skor;
+                $siswa->poin_total -= $skor;
+                $siswa->save();
+
+                DB::table('activity_logs')->insert([
+                    'user_id' => $user->id ?? null,
+                    'nis' => $siswa->nis,
+                    'kategori' => 'Pelanggaran',
+                    'activity' => 'Tambah Pelanggaran',
+                    'description' => $uraian,
+                    'point' => $skor,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                return $penilaian;
+            });
 
             return response()->json([
                 'success' => true,
@@ -87,7 +93,14 @@ class skoringpelanggaran extends Controller
                 'penilaian' => $penilaian,
                 'siswa' => $siswa,
             ], 201);
-            } catch (\Exception $e) {
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aspek penilaian tidak ditemukan.',
+            ], 404);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Gagal menyimpan skoring API', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menambahkan pelanggaran',

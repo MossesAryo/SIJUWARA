@@ -446,7 +446,7 @@
                                 </div>
                                 <div class="flex-1">
                                     <p class="font-semibold text-gray-900">Menambahkan data siswa baru</p>
-                                    <p class="text-sm text-gray-600">25 siswa kelas X RPL 1 berhasil ditambahkan</p>
+                                    <p class="text-sm text-gray-600">25 siswa kelas 10 PPLG 1 berhasil ditambahkan</p>
                                     <span class="text-xs text-gray-500">2 jam yang lalu</span>
                                 </div>
                             </div>

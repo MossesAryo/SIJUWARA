@@ -135,6 +135,13 @@ class Guru_bkController extends Controller
         try {
             $bk = guru_bk::findOrFail($id);
 
+            // FK penilaian & intervensi ON DELETE CASCADE: jangan hapus riwayat secara tak sengaja.
+            $riwayat = DB::table('penilaian')->where('nip_bk', $bk->nip_bk)->count()
+                + DB::table('intervensi')->where('nip_bk', $bk->nip_bk)->count();
+            if ($riwayat > 0) {
+                return redirect()->back()->with('error', "Guru BK tidak dapat dihapus karena memiliki {$riwayat} riwayat penilaian/intervensi.");
+            }
+
             User::where('username', $bk->username)->delete();
 
             $bk->delete();

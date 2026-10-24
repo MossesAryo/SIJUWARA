@@ -1,4 +1,4 @@
- <!-- Modal Edit Kelas -->
+<!-- Modal Edit Kelas -->
  <div id="modal-edit" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
      <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg">
          <form id="form-edit" method="POST" class="p-8 space-y-6">
@@ -34,8 +34,8 @@
                          class="form-input w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:ring-0 focus:outline-none uppercase"
                          required>
                      <p class="text-xs text-gray-500 mt-1">
-                         Kelas X: Program Keahlian (AKL, MPLB, PM, PPLG, DKV, TJKT).
-                         Kelas XI/XII: Kompetensi Keahlian (AK, MP, MLOG, RPL, TKJ, BR, DKV).
+                         Kelas 10: Program Keahlian (AKL, MPLB, PM, PPLG, DKV, TJKT).
+                         Kelas 11/12: Kompetensi Keahlian (AK, MP, MLOG, RPL, TKJ, BR, DKV).
                      </p>
                  </div>
 

@@ -13,8 +13,8 @@
     @endphp
 
     <div class="mb-5">
-        <a href="{{ route('superadmin.role.index') }}" class="text-sm text-gray-500 hover:text-gray-800">
-            <i class="bi bi-arrow-left"></i> Kembali ke Manajemen Role
+        <a href="{{ route('superadmin.user.index') }}" class="text-sm text-gray-500 hover:text-gray-800">
+            <i class="bi bi-arrow-left"></i> Kembali ke Manajemen User
         </a>
         <h2 class="mt-2 text-lg font-bold text-gray-900">Edit Akun {{ $labelRole }}</h2>
         <p class="text-sm text-gray-400">Role, NIP, dan username dikunci karena menjadi kunci relasi data.</p>
@@ -28,7 +28,7 @@
     @endunless
 
     <div class="max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
-        <form method="POST" action="{{ route('superadmin.role.update', $user->id) }}" class="space-y-5" autocomplete="off">
+        <form method="POST" action="{{ route('superadmin.user.update', $user->id) }}" class="space-y-5" autocomplete="off">
             @csrf
             @method('PUT')
 
@@ -140,7 +140,7 @@
             </div>
 
             <div class="flex flex-col-reverse gap-2 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
-                <a href="{{ route('superadmin.role.index') }}"
+                <a href="{{ route('superadmin.user.index') }}"
                     class="rounded-lg border border-gray-200 px-4 py-2.5 text-center text-sm text-gray-600 hover:bg-gray-50">Batal</a>
                 <button type="submit" class="rounded-lg px-5 py-2.5 text-sm font-semibold text-white"
                     style="background: linear-gradient(135deg, #4a7ab5, #1e3a5f);">

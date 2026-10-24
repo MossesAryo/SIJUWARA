@@ -40,7 +40,7 @@ class LaporanSkoringExport implements FromCollection, WithHeadings, WithMapping
 
         if ($this->jurusan) {
             $query->whereHas('siswa.kelas', function ($q) {
-                $q->where('jurusan', $this->jurusan);
+                $q->where('id_jurusan', $this->jurusan);
             });
         }
 

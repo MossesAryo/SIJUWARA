@@ -22,23 +22,23 @@ public function index()
     $jurusanKetua = null;
     $kelasWalikelas = null;
 
-    // ==== Jika role 3 (ketua program) → hanya tampil jurusan sesuai ketua ====
+    // ==== Jika role 4 (ketua program) → hanya tampil jurusan sesuai ketua ====
     if ($user->role == 4) {
 
         $ketua = ketua_program::where('username', $user->username)->first();
 
         // Jika data ketua program ditemukan dan punya jurusan
-        if ($ketua && $ketua->jurusan) {
+        if ($ketua && $ketua->id_jurusan) {
 
-            $jurusanKetua = $ketua->jurusan;
+            $jurusanKetua = $ketua->id_jurusan;
 
             // Filter intervensi berdasarkan jurusan siswa
             $query->whereHas('siswa.kelas', function ($q) use ($jurusanKetua) {
-                $q->where('jurusan', $jurusanKetua);
+                $q->where('id_jurusan', $jurusanKetua);
             });
         }
     }
-    if ($user->role == 4) {
+    if ($user->role == 3) {
 
         $walikelas = walikelas::where('username', $user->username)->first();
 

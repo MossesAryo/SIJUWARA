@@ -32,30 +32,30 @@
                     </label>
                     <div class="grid grid-cols-3 gap-2">
                         <label class="flex items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                            <input type="checkbox" name="tingkat[]" value="X" 
+                            <input type="checkbox" name="tingkat[]" value="10" 
                                 class="sr-only peer"
-                                {{ in_array('X', request('tingkat', [])) ? 'checked' : '' }}>
+                                {{ in_array('10', request('tingkat', [])) ? 'checked' : '' }}>
                             <div class="text-center peer-checked:text-blue-600 peer-checked:font-semibold">
-                                <div class="text-lg font-bold">X</div>
-                                <div class="text-xs text-gray-500">Kelas 10</div>
+                                <div class="text-lg font-bold">10</div>
+                                <div class="text-xs text-gray-500">Kelas</div>
                             </div>
                         </label>
                         <label class="flex items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                            <input type="checkbox" name="tingkat[]" value="XI" 
+                            <input type="checkbox" name="tingkat[]" value="11" 
                                 class="sr-only peer"
-                                {{ in_array('XI', request('tingkat', [])) ? 'checked' : '' }}>
+                                {{ in_array('11', request('tingkat', [])) ? 'checked' : '' }}>
                             <div class="text-center peer-checked:text-blue-600 peer-checked:font-semibold">
-                                <div class="text-lg font-bold">XI</div>
-                                <div class="text-xs text-gray-500">Kelas 11</div>
+                                <div class="text-lg font-bold">11</div>
+                                <div class="text-xs text-gray-500">Kelas</div>
                             </div>
                         </label>
                         <label class="flex items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                            <input type="checkbox" name="tingkat[]" value="XII" 
+                            <input type="checkbox" name="tingkat[]" value="12" 
                                 class="sr-only peer"
-                                {{ in_array('XII', request('tingkat', [])) ? 'checked' : '' }}>
+                                {{ in_array('12', request('tingkat', [])) ? 'checked' : '' }}>
                             <div class="text-center peer-checked:text-blue-600 peer-checked:font-semibold">
-                                <div class="text-lg font-bold">XII</div>
-                                <div class="text-xs text-gray-500">Kelas 12</div>
+                                <div class="text-lg font-bold">12</div>
+                                <div class="text-xs text-gray-500">Kelas</div>
                             </div>
                         </label>
                     </div>
@@ -71,8 +71,8 @@
                         <option value="">-- Pilih Pengurutan --</option>
                         <option value="nama_kelas_asc" {{ request('sort') == 'nama_kelas_asc' ? 'selected' : '' }}>Nama Kelas (A-Z)</option>
                         <option value="nama_kelas_desc" {{ request('sort') == 'nama_kelas_desc' ? 'selected' : '' }}>Nama Kelas (Z-A)</option>
-                        <option value="tingkat_asc" {{ request('sort') == 'tingkat_asc' ? 'selected' : '' }}>Tingkat (X, XI, XII)</option>
-                        <option value="tingkat_desc" {{ request('sort') == 'tingkat_desc' ? 'selected' : '' }}>Tingkat (XII, XI, X)</option>
+                        <option value="tingkat_asc" {{ request('sort') == 'tingkat_asc' ? 'selected' : '' }}>Tingkat (10, 11, 12)</option>
+                        <option value="tingkat_desc" {{ request('sort') == 'tingkat_desc' ? 'selected' : '' }}>Tingkat (12, 11, 10)</option>
                     </select>
                 </div>
 

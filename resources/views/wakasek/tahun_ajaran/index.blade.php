@@ -1,8 +1,9 @@
 @extends('layouts.wakasek.app')
 
 @php
-    $preview     = $preview ?? ['x_ke_xi' => 0, 'xi_ke_xii' => 0, 'lulus' => 0];
+    $preview     = $preview ?? ['kelas10_ke_11' => 0, 'kelas10_direncanakan' => 0, 'kelas11_ke_12' => 0, 'lulus' => 0];
     $tahunAktif  = $tahunAktif ?? null;
+    $rencanaMap  = $rencanaMap ?? collect();
     $tahunDipilih = old('tahun_ajaran_id', $tahunAktif?->id);
 @endphp
 
@@ -38,18 +39,32 @@
         </div>
     @endif
 
+    @include('wakasek.tahun_ajaran.kelas_tujuan')
+    {{-- Info kelas 10 --}}
+    <div class="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm flex gap-2">
+        <i class="bi bi-info-circle-fill mt-0.5"></i>
+        <p>
+            Penempatan siswa kelas 10 ke kelas 11 direncanakan oleh Ketua Program (siswa dicampur antar rombel).
+            Saat tahun ajaran naik 1 tahun, rencana itu diterapkan otomatis. Siswa kelas 10 yang belum
+            direncanakan tetap di kelas 10. Kelas 11 → 12 dan kelas 12 → Alumni tetap dipilih di sini.
+        </p>
+    </div>
+
     {{-- Preview --}}
     <div class="grid md:grid-cols-3 gap-4">
-        <div class="bg-blue-50 border rounded-lg p-4">
-            <p class="text-sm text-gray-600">Siswa X → XI</p>
-            <p class="text-3xl font-bold text-blue-700">{{ $preview['x_ke_xi'] }}</p>
+        <div class="bg-amber-50 border rounded-lg p-4">
+            <p class="text-sm text-gray-600">Kelas 10 → 11 (rencana Ketua Program)</p>
+            <p class="text-3xl font-bold text-amber-700">
+                {{ $preview['kelas10_direncanakan'] }}<span class="text-lg text-gray-500"> / {{ $preview['kelas10_ke_11'] }}</span>
+            </p>
+            <p class="text-xs text-gray-500 mt-1">siswa kelas 10 sudah direncanakan</p>
         </div>
         <div class="bg-indigo-50 border rounded-lg p-4">
-            <p class="text-sm text-gray-600">Siswa XI → XII</p>
-            <p class="text-3xl font-bold text-indigo-700">{{ $preview['xi_ke_xii'] }}</p>
+            <p class="text-sm text-gray-600">Siswa kelas 11 → 12</p>
+            <p class="text-3xl font-bold text-indigo-700">{{ $preview['kelas11_ke_12'] }}</p>
         </div>
         <div class="bg-green-50 border rounded-lg p-4">
-            <p class="text-sm text-gray-600">Siswa XII → Alumni</p>
+            <p class="text-sm text-gray-600">Siswa kelas 12 → Alumni</p>
             <p class="text-3xl font-bold text-green-700">{{ $preview['lulus'] }}</p>
         </div>
     </div>
@@ -60,6 +75,7 @@
         <p class="text-sm text-gray-500 mb-4">
             Sistem akan menaikkan atau menurunkan kelas siswa yang dicentang sesuai selisih tahun ajaran.
             Siswa yang tidak dicentang tidak akan berubah kelasnya.
+            Siswa kelas 10 tidak bisa dicentang saat naik kelas karena mengikuti rencana Ketua Program.
         </p>
 
         <form method="POST" action="{{ route('tahun_ajaran.update') }}" id="formTahunAjaran">
@@ -159,11 +175,16 @@
 
                 <tbody id="tahunTableBody" class="bg-white divide-y divide-gray-100">
                     @forelse ($siswaList as $item)
+                        @php
+                            $tingkatSiswa = \App\Models\kelas::tingkatDariId($item->id_kelas);
+                            $rencanaSiswa = $tingkatSiswa === '10' ? ($rencanaMap[(string) $item->nis] ?? null) : null;
+                        @endphp
                         <tr class="hover:bg-gray-50 group"
                             data-nis="{{ $item->nis }}"
                             data-nama="{{ strtolower($item->nama_siswa) }}"
                             data-kelas="{{ $item->id_kelas ?? '' }}"
-                            data-jurusan="{{ $item->id_jurusan ?? '' }}">
+                            data-jurusan="{{ $item->id_jurusan ?? '' }}"
+                            data-tingkat="{{ $tingkatSiswa ?? '' }}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-semibold text-gray-900 nomor-urut">{{ $loop->iteration }}</div>
                             </td>
@@ -175,6 +196,18 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-semibold text-gray-900">{{ $item->kelas?->nama_kelas ?? '-' }}</div>
+                                @if ($tingkatSiswa === '10')
+                                    @if ($rencanaSiswa)
+                                        <div class="text-xs text-emerald-700 mt-1">
+                                            Rencana → {{ $rencanaSiswa->kelasTujuan?->nama_kelas ?? $rencanaSiswa->id_kelas_tujuan }}
+                                        </div>
+                                    @else
+                                        <div class="text-xs text-gray-400 mt-1">Belum direncanakan Ketua Program</div>
+                                    @endif
+                                    <span class="badge-kaprog hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 mt-1 inline-block">
+                                        Mengikuti rencana Ketua Program
+                                    </span>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <input type="checkbox" class="siswa-check w-4 h-4" data-nis="{{ $item->nis }}">
@@ -214,6 +247,7 @@
         <div class="p-5 text-sm space-y-2">
             <p id="modalDesc" class="text-gray-700"></p>
             <p id="modalJumlah" class="text-gray-700"></p>
+            <p id="modalKaprog" class="text-amber-700"></p>
             <p class="text-red-600 font-semibold mt-2">Proses ini tidak bisa dibatalkan.</p>
         </div>
         <div class="p-5 border-t flex justify-end gap-2">
@@ -233,7 +267,11 @@
 @push('js')
 <script>
 (function () {
-    const TINGKAT = ['X', 'XI', 'XII'];
+    const TINGKAT = ['10', '11', '12'];
+
+    // Rencana penempatan kelas 10 -> 11 dari Ketua Program.
+    const JUMLAH_KELAS10    = {{ (int) $preview['kelas10_ke_11'] }};
+    const JUMLAH_DIRENCANAKAN = {{ (int) $preview['kelas10_direncanakan'] }};
 
     const form        = document.getElementById('formTahunAjaran');
     const select      = document.getElementById('selectTahun');
@@ -245,6 +283,7 @@
     const modal       = document.getElementById('modalKonfirmasi');
     const modalDesc   = document.getElementById('modalDesc');
     const modalJumlah = document.getElementById('modalJumlah');
+    const modalKaprog = document.getElementById('modalKaprog');
     const btnConfirm  = document.getElementById('btnConfirm');
     const btnBatal    = document.getElementById('btnBatal');
 
@@ -264,12 +303,19 @@
             const target = idx + selisih;
 
             if (selisih > 0) {
+                // Kelas 10 mengikuti rencana Ketua Program, hanya jika naik tepat 1 tahun.
+                if (t === '10') {
+                    return selisih === 1
+                        ? '10 → 11 (sesuai rencana Ketua Program)'
+                        : '10 (tidak diproses, rencana Ketua Program ditahan)';
+                }
+
                 return target >= TINGKAT.length
                     ? `${t} → Alumni`
                     : `${t} → ${TINGKAT[target]}`;
             }
 
-            // Turun: tidak pernah di bawah X.
+            // Turun: tidak pernah di bawah 10.
             const tujuan = Math.max(0, target);
             return tujuan === idx
                 ? `${t} (tidak berubah)`
@@ -300,10 +346,33 @@
         }
     }
 
+    /* ---------- Kunci siswa kelas 10 saat naik kelas ---------- */
+
+    function kunciKelas10() {
+        const naik = !!activeId && selisihTerpilih() > 0;
+
+        tableBody.querySelectorAll('tr[data-nis]').forEach(row => {
+            if (row.dataset.tingkat !== '10') return;
+
+            const cb    = row.querySelector('input.siswa-check');
+            const badge = row.querySelector('.badge-kaprog');
+
+            if (cb) {
+                cb.disabled = naik;
+                if (naik) cb.checked = false;
+            }
+            if (badge) badge.classList.toggle('hidden', !naik);
+            row.classList.toggle('opacity-60', naik);
+        });
+
+        syncSiswaNisInput();
+        syncMasterCheck();
+    }
+
     /* ---------- Pemilihan siswa ---------- */
 
     function getSelectedSiswaNis() {
-        return Array.from(tableBody.querySelectorAll('input.siswa-check:checked'))
+        return Array.from(tableBody.querySelectorAll('input.siswa-check:checked:not(:disabled)'))
             .map(cb => cb.dataset.nis)
             .filter(Boolean);
     }
@@ -322,10 +391,14 @@
             .filter(row => row.style.display !== 'none');
     }
 
-    function syncMasterCheck() {
-        const kotak = barisTampak()
+    function kotakAktifTampak() {
+        return barisTampak()
             .map(row => row.querySelector('input.siswa-check'))
-            .filter(Boolean);
+            .filter(cb => cb && !cb.disabled);
+    }
+
+    function syncMasterCheck() {
+        const kotak = kotakAktifTampak();
 
         const jumlahCentang = kotak.filter(cb => cb.checked).length;
         checkSemua.checked       = kotak.length > 0 && jumlahCentang === kotak.length;
@@ -333,9 +406,8 @@
     }
 
     function toggleSemuaSiswa(checked) {
-        barisTampak().forEach(row => {
-            const cb = row.querySelector('input.siswa-check');
-            if (cb) cb.checked = checked;
+        kotakAktifTampak().forEach(cb => {
+            cb.checked = checked;
         });
         syncSiswaNisInput();
         syncMasterCheck();
@@ -412,6 +484,19 @@
         modal.classList.remove('flex');
     }
 
+    function teksKaprog(selisih) {
+        if (selisih <= 0) return '';
+
+        if (selisih > 1) {
+            return 'Naik lebih dari 1 tahun: rencana Ketua Program tidak diterapkan dan siswa kelas 10 tetap di kelas 10.';
+        }
+
+        const belum = Math.max(0, JUMLAH_KELAS10 - JUMLAH_DIRENCANAKAN);
+
+        return `${JUMLAH_DIRENCANAKAN} siswa kelas 10 akan dipindah ke kelas 11 sesuai rencana Ketua Program. `
+            + `${belum} siswa kelas 10 yang belum direncanakan tetap di kelas 10.`;
+    }
+
     form.addEventListener('submit', function (e) {
         e.preventDefault();
 
@@ -436,7 +521,8 @@
         modalDesc.textContent = `${arah}: ${hitungPerubahan(selisih)}`;
         modalJumlah.textContent = daftar.length > 0
             ? `${daftar.length} siswa yang dicentang akan diproses.`
-            : 'Tidak ada siswa yang dicentang, hanya tahun ajaran yang akan diganti.';
+            : 'Tidak ada siswa yang dicentang untuk kelas 11 → 12 / 12 → Alumni.';
+        modalKaprog.textContent = teksKaprog(selisih);
 
         bukaModal();
     });
@@ -456,7 +542,10 @@
 
     /* ---------- Event ---------- */
 
-    select.addEventListener('change', updateHint);
+    select.addEventListener('change', function () {
+        updateHint();
+        kunciKelas10();
+    });
     inputSearch?.addEventListener('input', applyFilter);
     filterKelas?.addEventListener('change', applyFilter);
     filterJurusan?.addEventListener('change', function () {
@@ -485,6 +574,7 @@
     updateHint();
     filterKelasByJurusan();
     applyFilter();
+    kunciKelas10();
     syncSiswaNisInput();
 })();
 </script>

@@ -8,12 +8,19 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
 
+/**
+ * Import siswa ke SATU kelas yang dipilih lebih dulu di layar import.
+ * Semua baris masuk ke kelas itu, dan jurusan siswa otomatis mengikuti
+ * jurusan kelasnya (mis. kelas 10 PPLG 1 -> jurusan RPL).
+ *
+ * Kolom yang dibaca: NIS dan Nama Siswa. Kolom lain (No, Id Kelas) diabaikan.
+ * Baris contoh dari template (nama diawali "CONTOH") dilewati.
+ */
 class Siswa_Import implements ToCollection
 {
     private const HEADER_ALIASES = [
-        'nis'   => ['nis', 'nomorinduksiswa', 'nomorinduk'],
-        'nama'  => ['namasiswa', 'nama', 'namalengkap'],
-        'kelas' => ['idkelas', 'kelas', 'kodekelas', 'namakelas'],
+        'nis'  => ['nis', 'nomorinduksiswa', 'nomorinduk'],
+        'nama' => ['namasiswa', 'nama', 'namalengkap'],
     ];
 
     private const HEADER_SCAN_ROWS = 10;
@@ -26,14 +33,17 @@ class Siswa_Import implements ToCollection
     /** @var string[] */
     public array $errors = [];
 
-    /** Key kelas yang cocok ke lebih dari satu kelas (tidak bisa dipastikan) */
-    private array $kelasAmbigu = [];
+    private kelas $kelas;
+
+    public function __construct(kelas $kelas)
+    {
+        $kelas->loadMissing('jurusan');
+        $this->kelas = $kelas;
+    }
 
     public function collection(Collection $rows)
     {
         [$map, $startIndex] = $this->detectColumns($rows);
-
-        $kelasMap = $this->buildKelasMap();
 
         $data = [];
         $seen = [];
@@ -46,15 +56,19 @@ class Siswa_Import implements ToCollection
             $barisExcel = $index + 1;
             $row = $row->toArray();
 
-            $nisRaw   = $row[$map['nis']] ?? null;
-            $namaRaw  = $row[$map['nama']] ?? null;
-            $kelasRaw = $row[$map['kelas']] ?? null;
+            $nisRaw  = $row[$map['nis']] ?? null;
+            $namaRaw = $row[$map['nama']] ?? null;
 
-            if ($this->isBlank($nisRaw) && $this->isBlank($namaRaw) && $this->isBlank($kelasRaw)) {
+            if ($this->isBlank($nisRaw) && $this->isBlank($namaRaw)) {
                 continue;
             }
 
-            foreach ([$nisRaw, $namaRaw, $kelasRaw] as $cell) {
+            // Baris contoh dari template.
+            if ($this->isContoh($namaRaw)) {
+                continue;
+            }
+
+            foreach ([$nisRaw, $namaRaw] as $cell) {
                 if (is_string($cell) && preg_match('/^\s*[=+@]/', $cell)) {
                     $this->fail($barisExcel, 'berisi rumus / karakter tidak diizinkan');
                     continue 2;
@@ -77,33 +91,6 @@ class Siswa_Import implements ToCollection
                 continue;
             }
 
-            // Spasi, tanda hubung, dan huruf besar/kecil diabaikan:
-            // "X PPLG 1" == "x-pplg-1" == "XPPLG1"
-            $kelasKey = $this->normalizeHeader($kelasRaw);
-            if ($kelasKey === '') {
-                $this->fail($barisExcel, "Kelas kosong (NIS $nis)");
-                continue;
-            }
-
-            $kelasTeks = trim((string) $kelasRaw);
-            $kelas = $kelasMap[$kelasKey] ?? null;
-
-            if (!$kelas) {
-                if (isset($this->kelasAmbigu[$kelasKey])) {
-                    $this->fail(
-                        $barisExcel,
-                        "Kelas '$kelasTeks' cocok dengan lebih dari satu kelas, pakai Id Kelas (NIS $nis)"
-                    );
-                } else {
-                    $this->fail(
-                        $barisExcel,
-                        "Kelas '$kelasTeks' tidak ditemukan, pakai Id Kelas atau nama seperti "
-                        . "'X PPLG 1' / 'XI RPL 1' (NIS $nis)"
-                    );
-                }
-                continue;
-            }
-
             if (isset($seen[$nis])) {
                 $this->fail($barisExcel, "NIS $nis dobel di file (sudah ada di baris {$seen[$nis]})");
                 continue;
@@ -113,8 +100,8 @@ class Siswa_Import implements ToCollection
             $data[$nis] = [
                 'nis'        => $nis,
                 'nama_siswa' => $nama,
-                'id_kelas'   => $kelas->id_kelas,
-                'id_jurusan' => $kelas->id_jurusan,
+                'id_kelas'   => $this->kelas->id_kelas,
+                'id_jurusan' => $this->kelas->id_jurusan,
             ];
         }
 
@@ -168,7 +155,11 @@ class Siswa_Import implements ToCollection
         if ($this->dipulihkan)  $parts[] = "{$this->dipulihkan} dipulihkan dari arsip";
         if ($this->dilewati)    $parts[] = "{$this->dilewati} baris dilewati";
 
-        return $parts ? implode(', ', $parts) . '.' : 'Tidak ada data yang berubah.';
+        $teks = $parts ? implode(', ', $parts) . '.' : 'Tidak ada data yang berubah.';
+
+        $jurusan = $this->kelas->jurusan->nama_jurusan ?? $this->kelas->id_jurusan;
+
+        return $teks . " Kelas tujuan: {$this->kelas->nama_kelas} (jurusan {$jurusan}).";
     }
 
     public function hasImported(): bool
@@ -195,99 +186,25 @@ class Siswa_Import implements ToCollection
                 }
             }
 
-            if (isset($map['nis'], $map['nama'], $map['kelas'])) {
+            if (isset($map['nis'], $map['nama'])) {
                 return [$map, $i + 1];
             }
         }
 
-        return [['nis' => 1, 'nama' => 2, 'kelas' => 3], 2];
+        // Header tidak ketemu: pakai urutan template (No, NIS, Nama Siswa), baris 1 = header.
+        return [['nis' => 1, 'nama' => 2], 1];
     }
 
-    /** Huruf kecil, hanya a-z dan 0-9. Dipakai untuk header dan nama kelas. */
+    /** Huruf kecil, hanya a-z dan 0-9. Dipakai untuk membaca judul kolom. */
     private function normalizeHeader($value): string
     {
         return preg_replace('/[^a-z0-9]/', '', mb_strtolower(trim((string) $value)));
     }
 
-    /**
-     * Peta key => kelas. Prioritas:
-     *  1. id_kelas persis        (X-RPL-1)
-     *  2. nama_kelas persis      (X PPLG 1)
-     *  3. alias tingkat+kode+no  (X RPL 1 lama, X PPLG 1, XI RPL 1, XI PPLG 1, ...)
-     * Key yang ambigu di satu tingkat prioritas dilewati dan dicatat di $kelasAmbigu.
-     */
-    private function buildKelasMap(): array
+    private function isContoh($nama): bool
     {
-        $byId = $byNama = $byAlias = [];
-        $ambNama = $ambAlias = [];
-
-        foreach (kelas::all() as $k) {
-            $byId[$this->normalizeHeader($k->id_kelas)] = $k;
-
-            $this->daftarkan($byNama, $ambNama, $this->normalizeHeader($k->nama_kelas), $k);
-
-            foreach ($this->aliasKelas($k) as $alias) {
-                $this->daftarkan($byAlias, $ambAlias, $alias, $k);
-            }
-        }
-
-        $final = $byId;
-
-        foreach ([[$byNama, $ambNama], [$byAlias, $ambAlias]] as [$tier, $amb]) {
-            foreach ($tier as $key => $k) {
-                if (!isset($final[$key]) && !isset($amb[$key])) {
-                    $final[$key] = $k;
-                }
-            }
-        }
-
-        $this->kelasAmbigu = [];
-        foreach ($ambNama + $ambAlias as $key => $_) {
-            if (!isset($final[$key])) {
-                $this->kelasAmbigu[$key] = true;
-            }
-        }
-
-        return $final;
-    }
-
-    private function daftarkan(array &$tier, array &$ambigu, string $key, $k): void
-    {
-        if ($key === '') {
-            return;
-        }
-
-        if (isset($tier[$key]) && $tier[$key]->id_kelas !== $k->id_kelas) {
-            $ambigu[$key] = true;
-            return;
-        }
-
-        $tier[$key] = $k;
-    }
-
-    /**
-     * Alias dari id_kelas "X-RPL-1" + jurusan:
-     * tingkat + (kode di id, kode program, kode kompetensi) + nomor.
-     */
-    private function aliasKelas($k): array
-    {
-        if (!preg_match('/^(XII|XI|X)-([^-]+)-(\d+)$/i', trim((string) $k->id_kelas), $m)) {
-            return [];
-        }
-
-        $tingkat = strtoupper($m[1]);
-        $nomor   = $m[3];
-
-        $kodeList = array_unique(array_filter([
-            strtoupper($m[2]),
-            kelas::PROGRAM_KEAHLIAN[$k->id_jurusan] ?? null,
-            kelas::KOMPETENSI_KEAHLIAN[$k->id_jurusan] ?? null,
-        ]));
-
-        return array_map(
-            fn ($kode) => $this->normalizeHeader($tingkat . $kode . $nomor),
-            $kodeList
-        );
+        return is_string($nama)
+            && str_starts_with(mb_strtolower(trim($nama)), 'contoh');
     }
 
     private function cleanNis($value): ?string

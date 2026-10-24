@@ -695,17 +695,30 @@ class SiswaController extends Controller
     {
         try {
             $request->validate([
-                'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:10240',
+                'file'     => 'required|file|mimes:xlsx,xls,csv,txt|max:10240',
+                'id_kelas' => 'required|exists:kelas,id_kelas',
             ], [
-                'file.required' => 'Pilih file Excel terlebih dahulu.',
-                'file.mimes' => 'Format file harus .xlsx, .xls, atau .csv.',
-                'file.max' => 'Ukuran file maksimal 10MB.',
+                'file.required'     => 'Pilih file Excel terlebih dahulu.',
+                'file.mimes'        => 'Format file harus .xlsx, .xls, atau .csv.',
+                'file.max'          => 'Ukuran file maksimal 10MB.',
+                'id_kelas.required' => 'Pilih kelas terlebih dahulu.',
+                'id_kelas.exists'   => 'Kelas yang dipilih tidak ditemukan.',
             ]);
 
-            $import = new Siswa_Import;
+            $kelasTujuan = kelas::with('jurusan')
+                ->where('id_kelas', $request->input('id_kelas'))
+                ->firstOrFail();
+
+            // Jurusan siswa diambil dari kelas, jadi kelas tanpa jurusan (ALUMNI) tidak bisa dipakai.
+            if (!$kelasTujuan->id_jurusan) {
+                return redirect()->back()->with('error', 'Kelas yang dipilih tidak punya jurusan. Pilih kelas lain.');
+            }
+
+            $import = new Siswa_Import($kelasTujuan);
 
             Excel::import($import, $request->file('file'));
 
+            // FIX: variabel $redirect sebelumnya tidak pernah dibuat.
             $redirect = redirect()->back();
 
             if ($import->hasImported()) {
@@ -729,8 +742,11 @@ class SiswaController extends Controller
             return redirect()
                 ->back()
                 ->with('error', $e->validator->errors()->first());
-        } catch (\Exception $e) {
-            Log::error('Import siswa gagal: ' . $e->getMessage());
+        } catch (\Throwable $e) { // FIX: sebelumnya \Exception, jadi Error (mis. null->with) tidak tertangkap
+            Log::error('Import siswa gagal: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
 
             return redirect()
                 ->back()
@@ -738,51 +754,123 @@ class SiswaController extends Controller
         }
     }
 
+    /**
+     * Naikkan semua siswa AKTIF satu tingkat:
+     *   10-XXX-n -> 11-XXX-n,  11-XXX-n -> 12-XXX-n,  12-XXX-n -> ALUMNI (status "alumni").
+     *
+     * - Tujuan semua siswa dihitung dari kondisi AWAL (snapshot NIS per kelas) sebelum ada
+     *   yang diubah, jadi siswa kelas 10 tidak ikut terdorong lagi ke kelas 12.
+     * - Kelas yang tujuannya belum ada di tabel kelas (mis. 10-MP-5 -> 11-MP-5) dilewati:
+     *   siswanya tetap di kelas asal dan disebut di pesan hasil. Penempatannya diatur
+     *   Ketua Program (mis. masuk ke MLOG).
+     * - Semua perubahan dalam satu transaksi: gagal di tengah = tidak ada data berubah.
+     * - Hanya siswa berstatus "aktif" yang dipindahkan (alumni, nonaktif, dan arsip diabaikan).
+     */
     public function naikKelasSemua()
     {
         try {
-            $semuaKelas = kelas::all();
+            $hasil = DB::transaction(function () {
+                $idAda = kelas::pluck('id_kelas')->all();
+                $ada   = array_flip($idAda);
 
-            foreach ($semuaKelas as $kelasAsal) {
-                $kelasTujuan = null;
+                // 1) Tentukan tujuan tiap kelas asal.
+                $tujuanKelas = [];   // [id_kelas asal => id_kelas tujuan]
+                $tanpaTujuan = [];   // [id_kelas asal => id_kelas tujuan yang belum ada]
 
-                if (str_starts_with($kelasAsal->id_kelas, 'X-')) {
-                    $kelasTujuan = str_replace(
-                        'X-',
-                        'XI-',
-                        $kelasAsal->id_kelas
-                    );
-                } elseif (str_starts_with($kelasAsal->id_kelas, 'XI-')) {
-                    $kelasTujuan = str_replace(
-                        'XI-',
-                        'XII-',
-                        $kelasAsal->id_kelas
-                    );
-                } elseif (str_starts_with($kelasAsal->id_kelas, 'XII-')) {
-                    continue;
+                foreach ($idAda as $asal) {
+                    if (str_starts_with($asal, '10-')) {
+                        $tujuan = '11-' . substr($asal, 3);
+                    } elseif (str_starts_with($asal, '11-')) {
+                        $tujuan = '12-' . substr($asal, 3);
+                    } elseif (str_starts_with($asal, '12-')) {
+                        $tujuan = 'ALUMNI';
+                    } else {
+                        continue; // ALUMNI atau kelas lain: tidak diproses
+                    }
+
+                    if (isset($ada[$tujuan])) {
+                        $tujuanKelas[$asal] = $tujuan;
+                    } else {
+                        $tanpaTujuan[$asal] = $tujuan;
+                    }
                 }
 
-                $kelasTujuanData = kelas::where(
-                    'id_kelas',
-                    $kelasTujuan
-                )->first();
-
-                if ($kelasTujuanData) {
-                    siswa::where('id_kelas', $kelasAsal->id_kelas)
-                        ->update([
-                            'id_kelas' => $kelasTujuanData->id_kelas,
-                        ]);
+                if (empty($tujuanKelas)) {
+                    return ['naik' => 0, 'lulus' => 0, 'tanpaTujuan' => []];
                 }
+
+                // 2) Snapshot NIS siswa aktif per kelas asal SEBELUM ada update.
+                $nisPerKelas = siswa::query()
+                    ->where('status', 'aktif')
+                    ->whereIn('id_kelas', array_keys($tujuanKelas))
+                    ->lockForUpdate()
+                    ->get(['nis', 'id_kelas'])
+                    ->groupBy('id_kelas');
+
+                // Hitung siswa yang tertahan (untuk pesan hasil).
+                $tertahan = [];
+                if (!empty($tanpaTujuan)) {
+                    $jumlah = siswa::query()
+                        ->where('status', 'aktif')
+                        ->whereIn('id_kelas', array_keys($tanpaTujuan))
+                        ->selectRaw('id_kelas, COUNT(*) as total')
+                        ->groupBy('id_kelas')
+                        ->pluck('total', 'id_kelas');
+
+                    foreach ($tanpaTujuan as $asal => $tujuan) {
+                        if (($jumlah[$asal] ?? 0) > 0) {
+                            $tertahan[] = "{$asal} ({$jumlah[$asal]} siswa, butuh kelas {$tujuan})";
+                        }
+                    }
+                }
+
+                // 3) Terapkan berdasarkan daftar NIS, bukan berdasarkan id_kelas,
+                //    supaya siswa yang sudah dipindah tidak terpindah lagi.
+                $naik  = 0;
+                $lulus = 0;
+
+                foreach ($nisPerKelas as $asal => $daftar) {
+                    $tujuan = $tujuanKelas[$asal];
+                    $nilai  = ['id_kelas' => $tujuan];
+
+                    if ($tujuan === 'ALUMNI') {
+                        $nilai['status'] = 'alumni';
+                    }
+
+                    foreach ($daftar->pluck('nis')->chunk(500) as $potongan) {
+                        $jumlahUpdate = siswa::query()
+                            ->where('status', 'aktif')
+                            ->whereIn('nis', $potongan->all())
+                            ->update($nilai);
+
+                        if ($tujuan === 'ALUMNI') {
+                            $lulus += $jumlahUpdate;
+                        } else {
+                            $naik += $jumlahUpdate;
+                        }
+                    }
+                }
+
+                return ['naik' => $naik, 'lulus' => $lulus, 'tanpaTujuan' => $tertahan];
+            });
+
+            $pesan = "Naik kelas selesai: {$hasil['naik']} siswa naik kelas, {$hasil['lulus']} siswa lulus menjadi alumni.";
+
+            if (!empty($hasil['tanpaTujuan'])) {
+                $pesan .= ' Tidak ikut naik karena kelas tujuan belum ada: '
+                    . implode('; ', $hasil['tanpaTujuan']) . '.';
             }
 
-            return back()->with(
-                'success',
-                'Semua siswa berhasil dinaikkan kelas'
-            );
-        } catch (\Exception $e) {
+            return redirect()->back()->with('success', $pesan);
+        } catch (\Throwable $e) {
+            Log::error('Naik kelas semua gagal: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
             return redirect()
                 ->back()
-                ->with('error', 'Terjadi kesalahan');
+                ->with('error', 'Gagal menaikkan kelas, tidak ada data yang diubah: ' . $e->getMessage());
         }
     }
 

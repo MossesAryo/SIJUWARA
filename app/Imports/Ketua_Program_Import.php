@@ -14,7 +14,7 @@ class Ketua_Program_Import implements ToModel, WithHeadingRow
     public function headingRow(): int
     {
         return 2;
-    }   
+    }
 
     public function model(array $row)
     {
@@ -22,6 +22,11 @@ class Ketua_Program_Import implements ToModel, WithHeadingRow
         \Illuminate\Support\Facades\Log::info('Processing row: ' . json_encode($row));
         if (empty($row['username']) || is_null($row['username'])) {
             \Illuminate\Support\Facades\Log::warning('Null or empty username in row: ' . json_encode($row));
+            return null;
+        }
+
+        // Baris contoh dari template dilewati.
+        if ($this->isContoh($row['username'] ?? null) || $this->isContoh($row['nama_ketua_program'] ?? null)) {
             return null;
         }
 
@@ -40,5 +45,10 @@ class Ketua_Program_Import implements ToModel, WithHeadingRow
             'nama_ketua_program' => $row['nama_ketua_program'],
             'id_jurusan' => $row['jurusan'],
         ]);
+    }
+
+    private function isContoh($teks): bool
+    {
+        return is_string($teks) && str_starts_with(mb_strtolower(trim($teks)), 'contoh');
     }
 }

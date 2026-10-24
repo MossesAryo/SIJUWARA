@@ -27,7 +27,7 @@
                     <div class="space-y-4">
                         <div class="w-full">
                             <label for="exportJurusan" class="block text-sm font-medium text-gray-700 mb-2">
-                                Pilih Program / Kompetensi Keahlian
+                                Pilih Program / Konsentrasi Keahlian
                             </label>
                             <div class="relative">
                                 <select id="exportJurusan" name="jurusan"
@@ -35,7 +35,7 @@
                                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                                            hover:border-gray-400 transition-colors duration-200
                                            text-gray-700 text-sm">
-                                    <option value="" class="text-gray-500">Semua Program / Kompetensi Keahlian</option>
+                                    <option value="" class="text-gray-500">Semua Program / Konsentrasi Keahlian</option>
                                     @foreach ($jurusanList as $jurusan)
                                         <option value="{{ $jurusan->id_jurusan }}"
                                             {{ request('jurusan') == $jurusan->id_jurusan ? 'selected' : '' }}>
@@ -110,11 +110,43 @@
                         enctype="multipart/form-data" class="space-y-4">
                         @csrf
                         <div class="space-y-4">
+                            {{-- Langkah 1: pilih kelas. Jurusan otomatis mengikuti kelas. --}}
                             <div>
-                                <h4 class="text-sm font-medium text-gray-700 mb-2">Upload file untuk import data:</h4>
+                                <label for="importKelas" class="block text-sm font-medium text-gray-700 mb-2">
+                                    1. Pilih kelas tujuan <span class="text-red-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <select id="importKelas" name="id_kelas" required
+                                        class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm appearance-none cursor-pointer
+                                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                                               hover:border-gray-400 transition-colors duration-200
+                                               text-gray-700 text-sm">
+                                        <option value="" class="text-gray-500">-- Pilih Kelas --</option>
+                                        @foreach (collect($kelasList)->filter(fn ($k) => $k->id_jurusan) as $kelasImport)
+                                            <option value="{{ $kelasImport->id_kelas }}"
+                                                data-jurusan="{{ $kelasImport->id_jurusan }}">
+                                                {{ $kelasImport->nama_kelas }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <div
+                                        class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <p id="importJurusanInfo" class="mt-2 hidden text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-3 py-2"></p>
+                            </div>
+
+                            {{-- Langkah 2: upload file --}}
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-700 mb-2">2. Upload file import:</h4>
                                 <p class="text-xs text-gray-500 mb-3">
-                                    Kolom yang dibaca: <b>NIS</b>, <b>Nama Siswa</b>, <b>Id Kelas</b>.
-                                    NIS yang sudah terdaftar akan diperbarui. File hasil export bisa langsung diimport ulang.
+                                    Kolom yang dibaca: <b>NIS</b> dan <b>Nama Siswa</b>. Semua siswa di file masuk ke kelas
+                                    yang dipilih, dan jurusannya otomatis mengikuti kelas itu.
+                                    NIS yang sudah terdaftar akan diperbarui.
                                 </p>
 
                                 <div
@@ -173,7 +205,7 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
-                                    Download Template Excel
+                                    Download Template Excel (ada contoh)
                                 </a>
                             </div>
                         </div>
@@ -205,6 +237,9 @@
     const exportContent = document.getElementById('exportContent');
     const importContent = document.getElementById('importContent');
     const processBtn = document.getElementById('processBtn');
+
+    // id_jurusan => nama jurusan, dipakai untuk keterangan "jurusan otomatis".
+    const namaJurusan = @json(collect($jurusanList)->pluck('nama_jurusan', 'id_jurusan'));
 
     function openExportImportModal() {
         exportImportModal.classList.remove('hidden');
@@ -271,6 +306,22 @@
         document.getElementById('selectedFile').classList.add('hidden');
         document.getElementById('processBtn').classList.add('hidden');
     }
+
+    // Tampilkan jurusan otomatis begitu kelas dipilih.
+    document.getElementById('importKelas').addEventListener('change', function() {
+        const info = document.getElementById('importJurusanInfo');
+        const opt = this.options[this.selectedIndex];
+
+        if (!this.value) {
+            info.classList.add('hidden');
+            info.textContent = '';
+            return;
+        }
+
+        const idJurusan = opt.dataset.jurusan;
+        info.textContent = 'Jurusan otomatis: ' + (namaJurusan[idJurusan] || idJurusan);
+        info.classList.remove('hidden');
+    });
 
     const importDropZone = document.getElementById('importDropZone');
     ['dragenter', 'dragover'].forEach(evt => importDropZone.addEventListener(evt, e => {

@@ -18,30 +18,30 @@ class guru_bk_kelas extends Seeder
          */
         $data = [
             'Dra. Wening Wigati, S.E, M.Si' => [
-                'X-AK-1', 'X-AK-2', 'X-AK-3',
-                'X-DKV-1', 'X-DKV-2', 'X-TKJ-1',
-                'XII-MP-1', 'XII-MP-2', 'XII-MP-3',
+                '10-AK-1', '10-AK-2', '10-AK-3',
+                '10-DKV-1', '10-DKV-2', '10-TKJ-1',
+                '12-MP-1', '12-MP-2', '12-MP-3',
             ],
             'Ratih Pratiwi, S.Pd' => [
-                'X-BR-1', 'X-BR-2', 'X-BR-3',
-                'X-RPL-1', 'X-RPL-2',
-                'XI-BR-1', 'XI-BR-2', 'XI-TKJ-1',
-                'XII-TKJ-1',
+                '10-BR-1', '10-BR-2', '10-BR-3',
+                '10-RPL-1', '10-RPL-2',
+                '11-BR-1', '11-BR-2', '11-TKJ-1',
+                '12-TKJ-1',
             ],
             'Suci' => [
-                'XI-MP-1', 'XI-MP-2', 'XI-MP-3',
-                'XI-MLOG-1', 'XI-DKV-1', 'XI-DKV-2',
-                'XII-BR-1', 'XII-BR-2', 'XII-BR-3',
+                '11-MP-1', '11-MP-2', '11-MP-3',
+                '11-MLOG-1', '11-DKV-1', '11-DKV-2',
+                '12-BR-1', '12-BR-2', '12-BR-3',
             ],
             'Evi Febry Damayanti, S.Pd' => [
-                'X-MP-1', 'X-MP-2', 'X-MP-3', 'X-MP-4',
-                'XI-RPL-1', 'XI-RPL-2',
-                'XII-RPL-1', 'XII-RPL-2',
+                '10-MP-1', '10-MP-2', '10-MP-3', '10-MP-4',
+                '11-RPL-1', '11-RPL-2',
+                '12-RPL-1', '12-RPL-2',
             ],
             'Raden Roro Siti Ameliya Purnama Putri, S.Pd' => [
-                'XI-AK-1', 'XI-AK-2', 'XI-AK-3', 'XI-AK-4',
-                'XII-AK-1', 'XII-AK-2', 'XII-AK-3',
-                'XII-DKV-1', 'XII-DKV-2',
+                '11-AK-1', '11-AK-2', '11-AK-3', '11-AK-4',
+                '12-AK-1', '12-AK-2', '12-AK-3',
+                '12-DKV-1', '12-DKV-2',
             ],
         ];
 

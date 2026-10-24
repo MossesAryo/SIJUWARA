@@ -33,7 +33,7 @@ class WalikelasController extends Controller
 
         $query = walikelas::with('kelas');
 
-        // Search: nama, NIP, id kelas, atau nama kelas (mis. "X RPL 1")
+        // Search: nama, NIP, id kelas, atau nama kelas (mis. "10 RPL 1")
         if ($request->filled('search')) {
             $search = trim($request->search);
 
@@ -193,6 +193,15 @@ class WalikelasController extends Controller
     {
         try {
             $walikelas = Walikelas::where('nip_walikelas', $nip_walikelas)->firstOrFail();
+
+            // FK penilaian, intervensi & catatan ON DELETE CASCADE: jangan hapus riwayat secara tak sengaja.
+            $riwayat = DB::table('penilaian')->where('nip_walikelas', $walikelas->nip_walikelas)->count()
+                + DB::table('intervensi')->where('nip_walikelas', $walikelas->nip_walikelas)->count()
+                + DB::table('catatan')->where('nip_walikelas', $walikelas->nip_walikelas)->count();
+            if ($riwayat > 0) {
+                return redirect()->back()->with('error', "Wali kelas tidak dapat dihapus karena memiliki {$riwayat} riwayat penilaian/intervensi/catatan.");
+            }
+
             $user = User::where('username', $walikelas->username)->first();
 
             if ($user) {

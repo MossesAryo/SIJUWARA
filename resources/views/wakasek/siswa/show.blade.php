@@ -193,10 +193,10 @@
                             @php
                                 $isAlumni = $siswa->status == 'alumni';
 
-                                // Alumni dianggap lulusan kelas XII (Kompetensi Keahlian)
-                                $tingkatSiswa  = $isAlumni ? 'XII' : $siswa->kelas?->tingkat;
+                                // Alumni dianggap lulusan kelas 12 (Kompetensi Keahlian)
+                                $tingkatSiswa  = $isAlumni ? '12' : $siswa->kelas?->tingkat;
                                 $labelKeahlian = \App\Models\kelas::labelKeahlian($tingkatSiswa);
-                                $kodeKeahlian  = \App\Models\kelas::kodeKeahlian($siswa->id_jurusan, $tingkatSiswa) ?? '-';
+                                $kodeKeahlian  = \App\Models\kelas::kodeKeahlian($siswa->id_jurusan, $tingkatSiswa, $siswa->kelas?->nama_kelas) ?? '-';
 
                                 $studentInfo = [
                                     ['label' => 'NIS', 'value' => $siswa->nis],

@@ -22,7 +22,7 @@ class LaporanController extends Controller
         $jurusanKetua = null;
         $walikelasId = null;
 
-        if ($user->role == 3) {
+        if ($user->role == 4) {
 
             $ketua = ketua_program::where('username', $user->username)->first();
 
@@ -30,16 +30,16 @@ class LaporanController extends Controller
                 abort(403, "Data Ketua Program tidak ditemukan.");
             }
 
-            $jurusanKetua = $ketua->jurusan;
+            $jurusanKetua = $ketua->id_jurusan;
 
-            $kelas = kelas::where('jurusan', $jurusanKetua)->get();
+            $kelas = kelas::where('id_jurusan', $jurusanKetua)->get();
 
         } else {
 
             $kelas = kelas::all();
         }
 
-        if ($user->role == 4) {
+        if ($user->role == 3) {
             $walikelas = \App\Models\walikelas::where('username', $user->username)->first();
             if ($walikelas && $walikelas->id_kelas) {
                 $walikelasId = $walikelas->id_kelas;
@@ -72,11 +72,11 @@ class LaporanController extends Controller
             }
 
             if ($tingkat) {
-                $query->whereHas('siswa.kelas', fn($q) => $q->where('tingkat', $tingkat));
+                $query->whereHas('siswa.kelas', fn($q) => $q->where('nama_kelas', 'LIKE', $tingkat . ' %'));
             }
 
             if ($jurusan && !$kelas) {
-                $query->whereHas('siswa.kelas', fn($q) => $q->where('jurusan', $jurusan));
+                $query->whereHas('siswa.kelas', fn($q) => $q->where('id_jurusan', $jurusan));
             }
 
             if ($startDate && $endDate) {
@@ -87,7 +87,7 @@ class LaporanController extends Controller
             }
 
             $user = Auth::user();
-            if (!$startDate && !$endDate && $user && $user->role == 4) {
+            if (!$startDate && !$endDate && $user && $user->role == 3) {
                 $walikelas = \App\Models\walikelas::where('username', $user->username)->first();
                 if ($walikelas && $walikelas->id_kelas) {
                     $query->whereHas('siswa.kelas', fn($q) => $q->where('id_kelas', $walikelas->id_kelas));
@@ -101,7 +101,7 @@ class LaporanController extends Controller
             $keahlianLabel = 'Program / Kompetensi Keahlian';
             $keahlianNama  = 'Semua';
 
-            if (!$kelas && in_array($tingkat, ['X', 'XI', 'XII'], true)) {
+            if (!$kelas && in_array($tingkat, \App\Models\kelas::TINGKAT, true)) {
                 $keahlianLabel = \App\Models\kelas::labelKeahlian($tingkat);
             }
 
@@ -115,7 +115,7 @@ class LaporanController extends Controller
             } elseif ($jurusan) {
                 $j = strtoupper($jurusan);
 
-                if (in_array($tingkat, ['X', 'XI', 'XII'], true)) {
+                if (in_array($tingkat, \App\Models\kelas::TINGKAT, true)) {
                     $keahlianNama = \App\Models\kelas::kodeKeahlian($j, $tingkat) ?? $j;
                 } else {
                     $keahlianNama = \App\Models\kelas::ringkasanKode($j) ?: $j;
@@ -156,7 +156,7 @@ class LaporanController extends Controller
             $endDate = $request->query('end_date');
 
             $user = Auth::user();
-            if (!$startDate && !$endDate && $user && $user->role == 4) {
+            if (!$startDate && !$endDate && $user && $user->role == 3) {
                 $walikelas = \App\Models\walikelas::where('username', $user->username)->first();
                 if ($walikelas && $walikelas->id_kelas) {
                     $kelas = $walikelas->id_kelas;

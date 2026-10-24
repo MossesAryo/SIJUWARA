@@ -23,7 +23,7 @@ class AuthAPIcontroller extends Controller
         if (!$wk) {
             return response()->json([
                 'status'  => false,
-                'message' => 'NIP tidak ditemukan',
+                'message' => 'NIP atau password salah',
             ], 401);
         }
 
@@ -32,7 +32,7 @@ class AuthAPIcontroller extends Controller
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
                 'status'  => false,
-                'message' => 'Password salah',
+                'message' => 'NIP atau password salah',
             ], 401);
         }
 

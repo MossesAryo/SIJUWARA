@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\jurusan;
 use App\Models\kelas;
+use App\Models\RencanaPindahKelas;
 use App\Models\siswa;
 use App\Models\tahunAjaran;
 use Illuminate\Http\Request;
@@ -19,16 +20,22 @@ use Throwable;
  *
  * Aturan utama:
  * - Hanya siswa berstatus "aktif" dan yang DIPILIH (checkbox) yang dipindahkan.
- * - Kelas tujuan dihitung dari id_kelas: "X-RPL-1" -> "XI-RPL-1" -> "XII-RPL-1".
+ * - Kelas tujuan dihitung dari id_kelas: "11-RPL-1" -> "12-RPL-1".
+ * - Kelas 10 yang NAIK tidak dipilih manual di sini. Penempatannya ke kelas 11
+ *   (siswa dicampur) sudah direncanakan Ketua Program lewat PerpindahanKelasController;
+ *   rencana itu DITERAPKAN otomatis saat tahun ajaran naik 1 tahun. Siswa kelas 10 yang
+ *   belum direncanakan tetap di kelas 10.
  * - Kelas tujuan HARUS sudah ada di tabel kelas (foreign key). Jika ada yang belum
  *   ada, seluruh proses dibatalkan (tidak ada data setengah berubah) dan pesan
  *   menyebutkan kelas apa yang perlu dibuat dulu.
- * - Kelas XII yang naik -> id_kelas "ALUMNI" + status "alumni".
- * - Turun kelas tidak pernah menghidupkan kembali alumni dan tidak turun di bawah X.
+ * - Kelas 12 yang naik -> id_kelas "ALUMNI" + status "alumni".
+ * - Turun kelas tidak pernah menghidupkan kembali alumni dan tidak turun di bawah 10.
  */
 class TahunAjaranController extends Controller
 {
-    private const TINGKAT = ['X', 'XI', 'XII'];
+    private const TINGKAT = ['10', '11', '12'];
+    private const TINGKAT_DIATUR_KAPROG = '10';
+    private const TINGKAT_HASIL_KAPROG  = '11';
     private const ID_ALUMNI = 'ALUMNI';
     private const CHUNK = 500;
 
@@ -57,10 +64,19 @@ class TahunAjaranController extends Controller
             ->orderBy('nama_siswa')
             ->get();
 
+        // Rencana penempatan kelas 10 -> 11 dari Ketua Program, kunci = NIS.
+        $rencanaMap = RencanaPindahKelas::with('kelasTujuan')
+            ->get()
+            ->keyBy(fn ($r) => (string) $r->nis);
+
+        $siswaKelas10 = $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === '10');
+
         $preview = [
-            'x_ke_xi'   => $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === 'X')->count(),
-            'xi_ke_xii' => $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === 'XI')->count(),
-            'lulus'     => $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === 'XII')->count(),
+            // Kelas 10 -> 11 diatur Ketua Program: total siswa kelas 10 dan yang sudah direncanakan.
+            'kelas10_ke_11'        => $siswaKelas10->count(),
+            'kelas10_direncanakan' => $siswaKelas10->filter(fn ($s) => $rencanaMap->has((string) $s->nis))->count(),
+            'kelas11_ke_12'        => $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === '11')->count(),
+            'lulus'                => $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === '12')->count(),
         ];
 
         $kelasList   = kelas::with('jurusan')
@@ -77,6 +93,7 @@ class TahunAjaranController extends Controller
             'siswaList'   => $siswaList,
             'kelasList'   => $kelasList,
             'jurusanList' => $jurusanList,
+            'rencanaMap'  => $rencanaMap,
         ]);
     }
 
@@ -114,7 +131,7 @@ class TahunAjaranController extends Controller
             }
 
             // Selisih dihitung dari urutan tahun ajaran.
-            $urutanId   = tahunAjaran::orderBy('id', 'asc')->pluck('id')->map(fn ($v) => (int) $v)->values();
+            $urutanId    = tahunAjaran::orderBy('id', 'asc')->pluck('id')->map(fn ($v) => (int) $v)->values();
             $idxSekarang = $urutanId->search((int) $tahunSekarang->id);
             $idxBaru     = $urutanId->search((int) $tahunBaru->id);
 
@@ -122,11 +139,34 @@ class TahunAjaranController extends Controller
                 throw new RuntimeException('Data tahun ajaran tidak konsisten. Hubungi administrator.');
             }
 
-            $selisih  = $idxBaru - $idxSekarang;
+            $selisih = $idxBaru - $idxSekarang;
+
+            // Kelas tujuan harus dibuat dulu sebelum tahun ajaran naik.
+            if ($selisih > 0) {
+                $kurang = \App\Support\KelasTujuan::kurang();
+
+                if ($kurang->isNotEmpty()) {
+                    $contoh = $kurang->take(5)->pluck('nama_kelas')->implode(', ');
+                    $sisa   = $kurang->count() > 5 ? ' dan ' . ($kurang->count() - 5) . ' lainnya' : '';
+
+                    throw new RuntimeException(
+                        "Buat kelas tujuan dulu. {$kurang->count()} kelas belum ada ({$contoh}{$sisa}). "
+                        . 'Klik tombol "Buat Kelas Tujuan" di halaman ini, lalu ulangi.'
+                    );
+                }
+            }
+
             $nisDipilih = $this->ambilNisTerpilih($request->input('siswa_nis'));
 
             $hasil = DB::transaction(function () use ($selisih, $nisDipilih, $tahunBaru) {
+                // 1) Kelas 11 -> 12 dan 12 -> Alumni (atau turun kelas) untuk siswa yang dicentang.
                 $hasil = $this->pindahkanKelas($nisDipilih, $selisih);
+
+                // 2) Naik tepat 1 tahun: terapkan rencana Ketua Program (10 -> 11).
+                //    Dilakukan setelah langkah 1 supaya tidak tercampur dengan siswa kelas 11 lama.
+                if ($selisih === 1) {
+                    $hasil = array_merge($hasil, $this->terapkanRencanaKaprog());
+                }
 
                 tahunAjaran::where('id', '!=', $tahunBaru->id)->update(['status' => 'nonaktif']);
                 $tahunBaru->update(['status' => 'aktif']);
@@ -134,7 +174,13 @@ class TahunAjaranController extends Controller
                 return $hasil;
             });
 
-            $ringkasan = $this->susunRingkasan($selisih, $nisDipilih, $hasil);
+            // Siswa kelas 10 yang masih tinggal (belum direncanakan Ketua Program).
+            $menungguKaprog = $selisih > 0 ? $this->hitungSisaKelas10() : 0;
+
+            // Naik lebih dari 1 tahun: rencana tidak diterapkan, tetap tersimpan.
+            $rencanaDitahan = $selisih > 1 ? RencanaPindahKelas::query()->count() : 0;
+
+            $ringkasan = $this->susunRingkasan($selisih, $nisDipilih, $hasil, $menungguKaprog, $rencanaDitahan);
 
             ActivityLog::catat(
                 ActivityLog::KATEGORI_SISWA,
@@ -162,14 +208,18 @@ class TahunAjaranController extends Controller
     /**
      * Pindahkan kelas siswa terpilih sejauh $selisih tingkat.
      * $selisih > 0 = naik, $selisih < 0 = turun.
+     * Siswa kelas 10 yang NAIK dilewati: penempatannya mengikuti rencana Ketua Program.
      * Wajib dipanggil di dalam DB::transaction.
      *
      * @param  array<int,string>  $nisList
-     * @return array{naik:int, turun:int, lulus:int, tetap:int, dilewati:int}
+     * @return array{naik:int, turun:int, lulus:int, tetap:int, dilewati:int, diserahkan:int, ditempatkan:int, rencana_basi:int}
      */
     private function pindahkanKelas(array $nisList, int $selisih): array
     {
-        $hasil = ['naik' => 0, 'turun' => 0, 'lulus' => 0, 'tetap' => 0, 'dilewati' => 0];
+        $hasil = [
+            'naik' => 0, 'turun' => 0, 'lulus' => 0, 'tetap' => 0,
+            'dilewati' => 0, 'diserahkan' => 0, 'ditempatkan' => 0, 'rencana_basi' => 0,
+        ];
 
         if (empty($nisList) || $selisih === 0) {
             return $hasil;
@@ -188,7 +238,7 @@ class TahunAjaranController extends Controller
         }
 
         // Rencana: id kelas tujuan => daftar NIS.
-        $rencana = [];
+        $rencana     = [];
         $jenisPerNis = [];
 
         foreach ($siswaTerpilih as $s) {
@@ -200,6 +250,13 @@ class TahunAjaranController extends Controller
             }
 
             [$tingkat, $kode, $nomor] = $uraian;
+
+            // Kelas 10 naik ke 11 mengikuti rencana Ketua Program, bukan dihitung di sini.
+            if ($selisih > 0 && $tingkat === self::TINGKAT_DIATUR_KAPROG) {
+                $hasil['diserahkan']++;
+                continue;
+            }
+
             $idxSekarang = array_search($tingkat, self::TINGKAT, true);
             $idxTujuan   = $idxSekarang + $selisih;
 
@@ -266,6 +323,98 @@ class TahunAjaranController extends Controller
     }
 
     /**
+     * Terapkan semua rencana penempatan kelas 10 -> 11 dari Ketua Program, lalu hapus rencananya.
+     *
+     * Rencana dianggap basi (dibuang tanpa memindahkan siswa) bila siswanya sudah tidak aktif
+     * di kelas 10, kelas tujuannya bukan kelas 11, atau kelas tujuannya sudah tidak ada.
+     * Wajib dipanggil di dalam DB::transaction.
+     *
+     * @return array{ditempatkan:int, rencana_basi:int}
+     */
+    private function terapkanRencanaKaprog(): array
+    {
+        $hasil = ['ditempatkan' => 0, 'rencana_basi' => 0];
+
+        $semuaRencana = RencanaPindahKelas::query()
+            ->lockForUpdate()
+            ->get(['id', 'nis', 'id_kelas_tujuan']);
+
+        if ($semuaRencana->isEmpty()) {
+            return $hasil;
+        }
+
+        $nisSemua = $semuaRencana->map(fn ($r) => (string) $r->nis)->all();
+
+        // Kelas siswa saat ini (hanya yang masih aktif).
+        $kelasSiswa = [];
+        foreach (array_chunk($nisSemua, self::CHUNK) as $potongan) {
+            $baris = siswa::query()
+                ->where('status', 'aktif')
+                ->whereIn('nis', $potongan)
+                ->lockForUpdate()
+                ->get(['nis', 'id_kelas']);
+
+            foreach ($baris as $s) {
+                $kelasSiswa[(string) $s->nis] = $s->id_kelas;
+            }
+        }
+
+        $idTujuanAda = kelas::query()
+            ->whereIn('id_kelas', $semuaRencana->pluck('id_kelas_tujuan')->unique()->values()->all())
+            ->pluck('id_kelas')
+            ->all();
+
+        $perTujuan = [];
+
+        foreach ($semuaRencana as $r) {
+            $nis  = (string) $r->nis;
+            $asal = $kelasSiswa[$nis] ?? null;
+
+            $sah = $asal !== null
+                && kelas::tingkatDariId($asal) === self::TINGKAT_DIATUR_KAPROG
+                && kelas::tingkatDariId($r->id_kelas_tujuan) === self::TINGKAT_HASIL_KAPROG
+                && in_array($r->id_kelas_tujuan, $idTujuanAda, true);
+
+            if (!$sah) {
+                $hasil['rencana_basi']++;
+                continue;
+            }
+
+            $perTujuan[$r->id_kelas_tujuan][] = $nis;
+        }
+
+        foreach ($perTujuan as $idTujuan => $daftarNis) {
+            foreach (array_chunk($daftarNis, self::CHUNK) as $potongan) {
+                siswa::query()
+                    ->where('status', 'aktif')
+                    ->where('id_kelas', 'like', self::TINGKAT_DIATUR_KAPROG . '-%')
+                    ->whereIn('nis', $potongan)
+                    ->update(['id_kelas' => (string) $idTujuan]);
+            }
+
+            $hasil['ditempatkan'] += count($daftarNis);
+        }
+
+        // Semua rencana sudah diproses (diterapkan atau dibuang), hapus.
+        foreach (array_chunk($nisSemua, self::CHUNK) as $potongan) {
+            RencanaPindahKelas::query()->whereIn('nis', $potongan)->delete();
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Jumlah siswa aktif yang masih di kelas 10 (belum dipindah ke kelas 11).
+     */
+    private function hitungSisaKelas10(): int
+    {
+        return siswa::query()
+            ->where('status', 'aktif')
+            ->where('id_kelas', 'like', self::TINGKAT_DIATUR_KAPROG . '-%')
+            ->count();
+    }
+
+    /**
      * Ubah input siswa_nis (string "1,2,3" atau array) menjadi array NIS unik berisi angka saja.
      *
      * @return array<int,string>
@@ -292,7 +441,7 @@ class TahunAjaranController extends Controller
     }
 
     /**
-     * "XI-RPL-2" => ['XI', 'RPL', '2']. Mengembalikan null bila formatnya tidak dikenali
+     * "11-RPL-2" => ['11', 'RPL', '2']. Mengembalikan null bila formatnya tidak dikenali
      * (mis. NULL, "ALUMNI").
      */
     private function uraikanIdKelas(?string $idKelas): ?array
@@ -301,7 +450,7 @@ class TahunAjaranController extends Controller
             return null;
         }
 
-        if (!preg_match('/^(XII|XI|X)-(.+)-([^-]+)$/', trim($idKelas), $m)) {
+        if (!preg_match('/^(12|11|10)-(.+)-([^-]+)$/', trim($idKelas), $m)) {
             return null;
         }
 
@@ -313,22 +462,37 @@ class TahunAjaranController extends Controller
         return $this->uraikanIdKelas($idKelas)[0] ?? null;
     }
 
-    private function susunRingkasan(int $selisih, array $nisDipilih, array $hasil): string
+    private function susunRingkasan(int $selisih, array $nisDipilih, array $hasil, int $menungguKaprog = 0, int $rencanaDitahan = 0): string
     {
-        if (empty($nisDipilih)) {
-            return 'Tidak ada siswa yang dipilih, hanya tahun ajaran yang diganti.';
-        }
-
         $bagian = [];
 
-        if ($hasil['naik'] > 0)  $bagian[] = "{$hasil['naik']} siswa naik kelas";
-        if ($hasil['turun'] > 0) $bagian[] = "{$hasil['turun']} siswa turun kelas";
-        if ($hasil['lulus'] > 0) $bagian[] = "{$hasil['lulus']} siswa lulus menjadi alumni";
-        if ($hasil['tetap'] > 0) $bagian[] = "{$hasil['tetap']} siswa tetap di kelas X";
-        if ($hasil['dilewati'] > 0) $bagian[] = "{$hasil['dilewati']} siswa dilewati (kelas tidak dikenali)";
+        if ($hasil['naik'] > 0)        $bagian[] = "{$hasil['naik']} siswa naik kelas";
+        if ($hasil['turun'] > 0)       $bagian[] = "{$hasil['turun']} siswa turun kelas";
+        if ($hasil['lulus'] > 0)       $bagian[] = "{$hasil['lulus']} siswa lulus menjadi alumni";
+        if ($hasil['ditempatkan'] > 0) $bagian[] = "{$hasil['ditempatkan']} siswa kelas 10 ditempatkan ke kelas 11 sesuai rencana Ketua Program";
+        if ($hasil['tetap'] > 0)       $bagian[] = "{$hasil['tetap']} siswa tetap di kelas 10";
+        if ($hasil['dilewati'] > 0)    $bagian[] = "{$hasil['dilewati']} siswa dilewati (kelas tidak dikenali)";
 
-        return empty($bagian)
-            ? 'Tidak ada siswa aktif yang berubah kelasnya.'
-            : ucfirst(implode(', ', $bagian)) . '.';
+        if (!empty($bagian)) {
+            $teks = ucfirst(implode(', ', $bagian)) . '.';
+        } elseif (empty($nisDipilih)) {
+            $teks = 'Tidak ada siswa yang dipilih, hanya tahun ajaran yang diganti.';
+        } else {
+            $teks = 'Tidak ada siswa aktif yang berubah kelasnya.';
+        }
+
+        if ($hasil['rencana_basi'] > 0) {
+            $teks .= " {$hasil['rencana_basi']} rencana Ketua Program dibuang karena siswa atau kelas tujuannya sudah berubah.";
+        }
+
+        if ($rencanaDitahan > 0) {
+            $teks .= " {$rencanaDitahan} rencana Ketua Program tidak diterapkan karena tahun ajaran naik lebih dari 1 tahun.";
+        }
+
+        if ($menungguKaprog > 0) {
+            $teks .= " {$menungguKaprog} siswa kelas 10 belum ditempatkan ke kelas 11 dan masih di kelas 10.";
+        }
+
+        return $teks;
     }
 }

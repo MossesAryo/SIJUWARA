@@ -10,10 +10,14 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Throwable;
 
-class RoleController extends Controller
+/**
+ * Manajemen User: satu pintu untuk membuat, mengubah, dan menghapus akun semua role.
+ */
+class UserController extends Controller
 {
     private const PETA = [
         User::ROLE_WAKASEK => [
@@ -70,13 +74,14 @@ class RoleController extends Controller
     ];
 
     /**
-     * Role yang dapat dibuat lewat form Tambah Akun.
-     * Wakasek dibuat lewat menu Wakasek; Super Admin lewat php artisan make:superadmin.
+     * Semua role dapat dibuat lewat form Tambah Akun.
      */
     private const ROLE_BISA_DIBUAT = [
+        User::ROLE_WAKASEK,
         User::ROLE_GURU_BK,
         User::ROLE_WALIKELAS,
         User::ROLE_KETUA_PROGRAM,
+        User::ROLE_SUPER_ADMIN,
     ];
 
     /**
@@ -153,7 +158,7 @@ class RoleController extends Controller
             ])
             ->values();
 
-        return view('superadmin.role.index', [
+        return view('superadmin.user.index', [
             'pengguna' => $pengguna,
             'daftarRole' => $daftarRole,
             'totalSemua' => (int) $jumlahPerRole->sum(),
@@ -164,7 +169,7 @@ class RoleController extends Controller
     }
 
     /**
-     * Form tambah akun (Wali Kelas, Guru BK, Ketua Program).
+     * Form tambah akun (semua role: Wakasek, Guru BK, Wali Kelas, Ketua Program, Super Admin).
      */
     public function create(Request $request)
     {
@@ -173,7 +178,7 @@ class RoleController extends Controller
             ? $roleAwal
             : null;
 
-        return view('superadmin.role.create', [
+        return view('superadmin.user.create', [
             'daftarRole' => collect(self::ROLE_BISA_DIBUAT)
                 ->map(fn ($kode) => [
                     'kode' => $kode,
@@ -204,18 +209,18 @@ class RoleController extends Controller
     {
         $role = (int) $request->input('role');
 
+        $punyaProfil = $role !== User::ROLE_SUPER_ADMIN;
+
         $rules = [
             'role' => ['required', Rule::in(self::ROLE_BISA_DIBUAT)],
-            'nip' => [
-                'required',
-                'regex:/^\d{5,18}$/',
-                function ($attribute, $value, $fail) {
-                    if ($this->nipSudahDipakai((string) $value)) {
-                        $fail('NIP sudah dipakai oleh pengguna lain.');
-                    }
-                },
+            // Password opsional (kosong = password awal), kecuali Super Admin wajib mengisi.
+            'password' => [
+                Rule::requiredIf($role === User::ROLE_SUPER_ADMIN),
+                'nullable',
+                'string',
+                'min:8',
+                'confirmed',
             ],
-            'nama' => ['required', 'string', 'max:255'],
             'username' => [
                 'required',
                 'string',
@@ -232,6 +237,19 @@ class RoleController extends Controller
                 'unique:users,email',
             ],
         ];
+
+        if ($punyaProfil) {
+            $rules['nip'] = [
+                'required',
+                'regex:/^\d{5,18}$/',
+                function ($attribute, $value, $fail) {
+                    if ($this->nipSudahDipakai((string) $value)) {
+                        $fail('NIP sudah dipakai oleh pengguna lain.');
+                    }
+                },
+            ];
+            $rules['nama'] = ['required', 'string', 'max:255'];
+        }
 
         if ($role === User::ROLE_WALIKELAS) {
             $rules['id_kelas'] = [
@@ -269,15 +287,23 @@ class RoleController extends Controller
 
         $cfg = self::PETA[$role];
 
+        $passwordKustom = !empty($data['password']);
+        $password = $passwordKustom ? $data['password'] : self::PASSWORD_AWAL;
+
         try {
-            DB::transaction(function () use ($data, $role, $cfg) {
+            DB::transaction(function () use ($data, $role, $cfg, $password) {
                 User::create([
                     'username' => $data['username'],
                     'email' => $data['email'],
-                    // Password awal default; di-hash otomatis oleh cast 'hashed' pada model User.
-                    'password' => self::PASSWORD_AWAL,
+                    // Di-hash otomatis oleh cast 'hashed' pada model User.
+                    'password' => $password,
                     'role' => $role,
                 ]);
+
+                // Super Admin tidak punya tabel profil.
+                if ($cfg['tabel'] === null) {
+                    return;
+                }
 
                 $now = now();
 
@@ -337,22 +363,32 @@ class RoleController extends Controller
         ActivityLog::catat(
             ActivityLog::KATEGORI_AKUN,
             'Tambah Akun',
-            'Akun ' . $cfg['label'] . ' "' . $data['username']
-                . '" dibuat (NIP ' . $data['nip']
-                . ', nama ' . $data['nama']
-                . $keterangan . ').'
+            'Akun ' . $cfg['label'] . ' "' . $data['username'] . '" dibuat'
+                . ($punyaProfil
+                    ? ' (NIP ' . $data['nip']
+                        . ', nama ' . $data['nama']
+                        . $keterangan . ')'
+                    : '')
+                . '.'
         );
 
+        $namaTampil = $punyaProfil ? $data['nama'] : $data['username'];
+        $infoLogin = $punyaProfil
+            ? 'Login memakai NIP'
+            : 'Login memakai username pada kolom NIP';
+        $infoPassword = $passwordKustom
+            ? 'dan password yang Anda tentukan.'
+            : 'dan password awal: ' . self::PASSWORD_AWAL . '.';
+
         return redirect()
-            ->route('superadmin.role.index', [
+            ->route('superadmin.user.index', [
                 'role' => $role,
                 'q' => $data['username'],
             ])
             ->with(
                 'success',
-                'Akun ' . $cfg['label'] . ' "' . $data['nama']
-                    . '" berhasil dibuat. Login memakai NIP dan password awal: '
-                    . self::PASSWORD_AWAL . '.'
+                'Akun ' . $cfg['label'] . ' "' . $namaTampil
+                    . '" berhasil dibuat. ' . $infoLogin . ' ' . $infoPassword
             );
     }
 
@@ -390,7 +426,7 @@ class RoleController extends Controller
             $daftarJurusan = jurusan::orderBy('nama_jurusan')->get();
         }
 
-        return view('superadmin.role.edit', [
+        return view('superadmin.user.edit', [
             'user' => $user,
             'cfg' => $cfg,
             'profil' => $profil,
@@ -548,7 +584,7 @@ class RoleController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.role.index')
+            ->route('superadmin.user.index')
             ->with(
                 'success',
                 'Data akun "' . $user->username . '" berhasil diperbarui.'
@@ -567,13 +603,13 @@ class RoleController extends Controller
             $request->user()->id
         )) {
             return redirect()
-                ->route('superadmin.role.index')
+                ->route('superadmin.user.index')
                 ->with('error', $alasan);
         }
 
         [$cfg, $profil] = $this->ambilProfil($user);
 
-        return view('superadmin.role.delete', [
+        return view('superadmin.user.delete', [
             'user' => $user,
             'cfg' => $cfg,
             'profil' => $profil,
@@ -583,6 +619,8 @@ class RoleController extends Controller
                 $profil,
                 (int) $user->role
             ),
+            'wakasekTerakhir' => (int) $user->role === User::ROLE_WAKASEK
+                && User::where('role', User::ROLE_WAKASEK)->count() <= 1,
         ]);
     }
 
@@ -603,7 +641,7 @@ class RoleController extends Controller
             $request->user()->id
         )) {
             return redirect()
-                ->route('superadmin.role.index')
+                ->route('superadmin.user.index')
                 ->with('error', $alasan);
         }
 
@@ -615,6 +653,21 @@ class RoleController extends Controller
         $nip = ($profil && $cfg) ? $profil->{$cfg['nip']} : null;
         $nama = ($profil && $cfg) ? $profil->{$cfg['nama']} : null;
         $dampak = $this->hitungDampak($cfg, $profil, $role);
+
+        // Simpan path file bukti sebelum data terkait terhapus melalui cascade (khusus Wakasek).
+        $fileBukti = [];
+
+        if ($profil && $role === User::ROLE_WAKASEK) {
+            $fileBukti = DB::table('bukti_pembinaan')
+                ->whereIn(
+                    'intervensi_id',
+                    DB::table('intervensi')
+                        ->where('nip_wakasek', $nip)
+                        ->select('id_intervensi')
+                )
+                ->pluck('file')
+                ->all();
+        }
 
         try {
             DB::transaction(function () use ($user, $cfg, $profil) {
@@ -651,11 +704,23 @@ class RoleController extends Controller
             ]);
 
             return redirect()
-                ->route('superadmin.role.index')
+                ->route('superadmin.user.index')
                 ->with(
                     'error',
                     'Akun gagal dihapus. Tidak ada data yang berubah, silakan coba lagi.'
                 );
+        }
+
+        // Bersihkan file bukti pembinaan dari disk (gagal hapus file tidak membatalkan penghapusan data).
+        foreach ($fileBukti as $path) {
+            try {
+                Storage::disk('public')->delete($path);
+            } catch (Throwable $e) {
+                Log::warning('File bukti pembinaan gagal dihapus', [
+                    'file' => $path,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         $this->hapusSesi($id);
@@ -678,7 +743,7 @@ class RoleController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.role.index')
+            ->route('superadmin.user.index')
             ->with(
                 'success',
                 'Akun "' . $username . '" berhasil dihapus.'
@@ -839,6 +904,17 @@ class RoleController extends Controller
                 ->count();
         }
 
+        if ($role === User::ROLE_WAKASEK) {
+            $dampak['Bukti pembinaan'] = DB::table('bukti_pembinaan')
+                ->whereIn(
+                    'intervensi_id',
+                    DB::table('intervensi')
+                        ->where('nip_wakasek', $nip)
+                        ->select('id_intervensi')
+                )
+                ->count();
+        }
+
         if ($role === User::ROLE_GURU_BK) {
             $dampak['Penugasan kelas'] = DB::table('guru_bk_kelas')
                 ->where('guru_bk_id', $nip)
@@ -966,6 +1042,7 @@ class RoleController extends Controller
             'id_kelas.unique' => 'Kelas ini sudah memiliki wali kelas lain.',
             'role.required' => 'Pilih role terlebih dahulu.',
             'role.in' => 'Role yang dipilih tidak valid.',
+            'password.required' => 'Password wajib diisi untuk akun Super Admin.',
             'nip.regex' => 'NIP harus berupa angka 5 sampai 18 digit.',
             'username.regex' => 'Username hanya boleh huruf, angka, titik, garis bawah, dan strip (tanpa spasi).',
             'username.not_regex' => 'Username tidak boleh hanya berisi angka.',

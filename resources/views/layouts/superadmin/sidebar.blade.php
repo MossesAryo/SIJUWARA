@@ -1,11 +1,10 @@
 @php
     $menus = [
-        ['label' => 'Dashboard',         'icon' => 'bi-speedometer2', 'route' => 'superadmin.dashboard',          'active' => 'superadmin.dashboard'],
-        ['label' => 'Manajemen Wakasek', 'icon' => 'bi-person-badge', 'route' => 'superadmin.wakasek.index',      'active' => 'superadmin.wakasek.*'],
-        ['label' => 'Manajemen Role',    'icon' => 'bi-shield-lock',  'route' => 'superadmin.role.index',         'active' => 'superadmin.role.*'],
-        ['label' => 'Manajemen Jurusan', 'icon' => 'bi-mortarboard',  'route' => 'superadmin.jurusan.index',      'active' => 'superadmin.jurusan.*'],
-        ['label' => 'Pemantauan Role',   'icon' => 'bi-activity',     'route' => 'superadmin.pemantauan.index',   'active' => 'superadmin.pemantauan.*'],
-        ['label' => 'Tong Sampah Siswa', 'icon' => 'bi-archive',      'route' => 'superadmin.siswa-arsip.index',  'active' => 'superadmin.siswa-arsip.*'],
+        ['label' => 'Dashboard',         'icon' => 'bi-speedometer2',  'route' => 'superadmin.dashboard',         'active' => 'superadmin.dashboard'],
+        ['label' => 'Manajemen User',    'icon' => 'bi-people',        'route' => 'superadmin.user.index',        'active' => 'superadmin.user.*'],
+        ['label' => 'Manajemen Keahlian', 'icon' => 'bi-mortarboard',   'route' => 'superadmin.jurusan.index',     'active' => 'superadmin.jurusan.*'],
+        ['label' => 'Pemantauan Role',   'icon' => 'bi-activity',      'route' => 'superadmin.pemantauan.index',  'active' => 'superadmin.pemantauan.*'],
+        ['label' => 'Tong Sampah Siswa', 'icon' => 'bi-archive',       'route' => 'superadmin.siswa-arsip.index', 'active' => 'superadmin.siswa-arsip.*'],
         ['label' => 'Log Aktivitas',     'icon' => 'bi-clock-history', 'route' => 'superadmin.log.index',         'active' => 'superadmin.log.*'],
     ];
 @endphp
@@ -25,9 +24,15 @@
     <div class="flex-shrink-0 border-b border-gray-100 p-6">
         <div class="flex items-center gap-3">
             <img src="{{ asset('img/logo.png') }}" alt="SIJUWARA" class="h-10 w-10 object-contain">
+
             <div>
-                <h1 class="text-lg font-extrabold tracking-wide" style="color: #1e3a5f;">SIJUWARA</h1>
-                <p class="text-xs font-medium" style="color: #4a7ab5;">Super Admin</p>
+                <h1 class="text-lg font-extrabold tracking-wide" style="color: #1e3a5f;">
+                    SIJUWARA
+                </h1>
+
+                <p class="text-xs font-medium" style="color: #4a7ab5;">
+                    Super Admin
+                </p>
             </div>
         </div>
     </div>
@@ -39,7 +44,9 @@
                     <a href="{{ Route::has($menu['route']) ? route($menu['route']) : '#' }}"
                         class="flex items-center gap-3 rounded-lg px-3 py-2.5
                         {{ request()->routeIs($menu['active']) ? 'active-link' : 'text-gray-600 hover:bg-gray-50' }}">
+
                         <i class="bi {{ $menu['icon'] }}"></i>
+
                         <span>{{ $menu['label'] }}</span>
                     </a>
                 </li>
@@ -50,7 +57,9 @@
     <div class="flex-shrink-0 border-t border-gray-100 p-3">
         <a href="{{ route('logout') }}"
             class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-gray-600 hover:bg-red-50 hover:text-red-600">
+
             <i class="bi bi-box-arrow-right"></i>
+
             <span>Keluar</span>
         </a>
     </div>

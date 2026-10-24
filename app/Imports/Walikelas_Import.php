@@ -67,6 +67,11 @@ class Walikelas_Import implements ToCollection
                 continue;
             }
 
+            // Baris contoh dari template (nama diawali "CONTOH") dilewati.
+            if (is_string($namaRaw) && str_starts_with(mb_strtolower(trim($namaRaw)), 'contoh')) {
+                continue;
+            }
+
             foreach ([$nipRaw, $namaRaw, $kelasRaw, $usernameRaw] as $cell) {
                 if (is_string($cell) && preg_match('/^\s*[=+@]/', $cell)) {
                     $this->fail($barisExcel, 'berisi rumus / karakter tidak diizinkan');
@@ -110,8 +115,8 @@ class Walikelas_Import implements ToCollection
             }
 
             // Spasi, tanda hubung, dan huruf besar/kecil diabaikan:
-            // "X PPLG 1" == "x-pplg-1" == "XPPLG1"
-            $kelasKey = $this->normalizeHeader($kelasRaw);
+            // "10 PPLG 1" == "10-pplg-1" == "10PPLG1"
+            $kelasKey = $this->normalizeHeader(kelas::romawiKeAngka($kelasRaw));
             if ($kelasKey === '') {
                 $this->fail($barisExcel, "Kelas kosong (NIP $nip)");
                 continue;
@@ -130,7 +135,7 @@ class Walikelas_Import implements ToCollection
                     $this->fail(
                         $barisExcel,
                         "Kelas '$kelasTeks' tidak ditemukan, pakai Id Kelas seperti "
-                        . "'X-RPL-1' atau nama seperti 'X PPLG 1' (NIP $nip)"
+                        . "'10-RPL-1' atau nama seperti '10 PPLG 1' (NIP $nip)"
                     );
                 }
                 continue;
@@ -327,9 +332,9 @@ class Walikelas_Import implements ToCollection
 
     /**
      * Peta key => kelas. Prioritas:
-     *  1. id_kelas persis        (X-RPL-1)
-     *  2. nama_kelas persis      (X PPLG 1)
-     *  3. alias tingkat+kode+no  (X RPL 1, X PPLG 1, XI RPL 1, ...)
+     *  1. id_kelas persis        (10-RPL-1)
+     *  2. nama_kelas persis      (10 PPLG 1)
+     *  3. alias tingkat+kode+no  (10 RPL 1, 10 PPLG 1, 11 RPL 1, ...)
      * Key yang ambigu di satu tingkat prioritas dilewati dan dicatat di $kelasAmbigu.
      */
     private function buildKelasMap(): array
@@ -382,22 +387,22 @@ class Walikelas_Import implements ToCollection
     }
 
     /**
-     * Alias dari id_kelas "X-RPL-1" + jurusan:
+     * Alias dari id_kelas "10-RPL-1" + jurusan:
      * tingkat + (kode di id, kode program, kode kompetensi) + nomor.
      */
     private function aliasKelas($k): array
     {
-        if (!preg_match('/^(XII|XI|X)-([^-]+)-(\d+)$/i', trim((string) $k->id_kelas), $m)) {
+        if (!preg_match('/^(12|11|10)-([^-]+)-(\d+)$/', trim((string) $k->id_kelas), $m)) {
             return [];
         }
 
-        $tingkat = strtoupper($m[1]);
+        $tingkat = $m[1];
         $nomor   = $m[3];
 
         $kodeList = array_unique(array_filter([
             strtoupper($m[2]),
-            kelas::PROGRAM_KEAHLIAN[$k->id_jurusan] ?? null,
-            kelas::KOMPETENSI_KEAHLIAN[$k->id_jurusan] ?? null,
+            kelas::programKeahlian($k->id_jurusan),
+            kelas::kompetensiKelas($k->id_jurusan, $m[2]),
         ]));
 
         return array_map(

@@ -17,9 +17,9 @@
                         <select id="create_tingkat"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                             <option value="" selected>Pilih</option>
-                            <option value="X">X</option>
-                            <option value="XI">XI</option>
-                            <option value="XII">XII</option>
+                            <option value="10">10</option>
+                            <option value="11">11</option>
+                            <option value="12">12</option>
                         </select>
                     </div>
 
@@ -45,9 +45,9 @@
                     <label for="id_kelas" class="block text-sm font-medium text-gray-700 mb-1">ID Kelas</label>
                     <input type="text" id="id_kelas" name="id_kelas" required
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Contoh: X-RPL-2, XI-RPL-1, XII-TKJ-3">
+                        placeholder="Contoh: 10-RPL-2, 11-RPL-1, 12-TKJ-3">
                     <p class="text-xs text-gray-500 mt-1">
-                        Kode di ID sama untuk semua tingkat (mis. X-RPL-1, XI-RPL-1) agar proses naik kelas berjalan.
+                        Kode di ID sama untuk semua tingkat (mis. 10-RPL-1, 11-RPL-1) agar proses naik kelas berjalan.
                     </p>
                 </div>
 
@@ -55,10 +55,10 @@
                     <label for="nama_kelas" class="block text-sm font-medium text-gray-700 mb-1">Nama Kelas</label>
                     <input type="text" id="nama_kelas" name="nama_kelas" required
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Contoh: X PPLG 2, XI RPL 1, XII TKJ 3">
+                        placeholder="Contoh: 10 PPLG 2, 11 RPL 1, 12 TKJ 3">
                     <p class="text-xs text-gray-500 mt-1">
-                        Kelas X memakai Program Keahlian (AKL, MPLB, PM, PPLG, DKV, TJKT).
-                        Kelas XI/XII memakai Kompetensi Keahlian (AK, MP, MLOG, RPL, TKJ, BR, DKV).
+                        Kelas 10 memakai Program Keahlian (AKL, MPLB, PM, PPLG, DKV, TJKT).
+                        Kelas 11/12 memakai Kompetensi Keahlian (AK, MP, MLOG, RPL, TKJ, BR, DKV).
                     </p>
                 </div>
             </div>

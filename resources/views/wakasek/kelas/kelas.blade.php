@@ -91,13 +91,19 @@
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2">
                                     <i class="bi bi-tag text-gray-400"></i>
-                                    Program / Kompetensi Keahlian
+                                    Program / Konsentrasi Keahlian
                                 </div>
                             </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2">
                                     <i class="bi bi-tag text-gray-400"></i>
                                     Nama Kelas
+                                </div>
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                <div class="flex items-center gap-2">
+                                    <i class="bi bi-people text-gray-400"></i>
+                                    Jumlah Siswa
                                 </div>
                             </th>
                             @if (auth()->user()->role == 1)
@@ -130,6 +136,16 @@
                                 <td class="px-6 py-4">
                                     <div class="text-sm font-semibold text-gray-900">{{ $item->nama_kelas }}</div>
                                 </td>
+                                <td class="px-6 py-4">
+                                    <button type="button"
+                                        onclick="openSiswaModal('{{ $item->id_kelas }}', '{{ $item->nama_kelas }}')"
+                                        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm font-semibold transition-colors"
+                                        title="Lihat daftar siswa {{ $item->nama_kelas }}">
+                                        <i class="bi bi-people"></i>
+                                        {{ number_format($item->siswa_count) }} siswa
+                                        <i class="bi bi-chevron-right text-xs"></i>
+                                    </button>
+                                </td>
                                 @if (auth()->user()->role == 1)
                                     <td class="px-6 py-4">
                                         <div class="flex items-center gap-1">
@@ -151,7 +167,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="px-6 py-12 text-center">
+                                <td colspan="5" class="px-6 py-12 text-center">
                                     <div
                                         class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                         <i class="bi bi-collection text-3xl text-gray-400"></i>
@@ -175,28 +191,31 @@
     @include('wakasek.kelas.edit')
     @include('wakasek.kelas.delete')
     @include('wakasek.kelas.modalFilter')
+    @include('wakasek.kelas.siswa')
 @endsection
 
 @push('js')
     <script>
         // ===== Mapping keahlian (sumber: App\Models\kelas) =====
-        // Kelas X = Program Keahlian, kelas XI/XII = Kompetensi Keahlian
-        const PROGRAM_KEAHLIAN = @json(\App\Models\kelas::PROGRAM_KEAHLIAN);
-        const KOMPETENSI_KEAHLIAN = @json(\App\Models\kelas::KOMPETENSI_KEAHLIAN);
+        // Kelas 10 = Program Keahlian, kelas 11/12 = Konsentrasi Keahlian
+        const PROGRAM_KEAHLIAN = @json(\App\Models\kelas::petaProgram());
+        const KOMPETENSI_KEAHLIAN = @json(\App\Models\kelas::petaKonsentrasiUtama());
+        const KONSENTRASI_KEAHLIAN = @json(\App\Models\kelas::petaKonsentrasi());
 
         function tingkatDariNama(nama) {
-            const m = (nama || '').trim().match(/^(XII|XI|X)\s/i);
-            return m ? m[1].toUpperCase() : null;
+            const m = (nama || '').trim().match(/^(12|11|10)\s/);
+            return m ? m[1] : null;
         }
 
         function kodeKeahlian(tingkat, idJurusan) {
-            const map = tingkat === 'X' ? PROGRAM_KEAHLIAN : KOMPETENSI_KEAHLIAN;
-            return map[idJurusan] || null;
+            if (tingkat === '10') return PROGRAM_KEAHLIAN[idJurusan] || null;
+            const list = KONSENTRASI_KEAHLIAN[idJurusan] || [];
+            return list.length ? list.join(' / ') : null;
         }
 
         function infoKeahlian(tingkat, idJurusan) {
             if (!tingkat || !idJurusan) return '';
-            const label = tingkat === 'X' ? 'Program Keahlian' : 'Kompetensi Keahlian';
+            const label = tingkat === '10' ? 'Program Keahlian' : 'Konsentrasi Keahlian';
             const kode = kodeKeahlian(tingkat, idJurusan);
             return kode ?
                 `Kelas ${tingkat}: ${label} ${kode}` :
@@ -221,10 +240,12 @@
             if (hint) hint.textContent = infoKeahlian(tingkat, jur);
             if (!tingkat || !jur) return;
 
-            const kode = kodeKeahlian(tingkat, jur);
+            const kode = tingkat === '10' ?
+                PROGRAM_KEAHLIAN[jur] :
+                (KONSENTRASI_KEAHLIAN[jur] || [])[0];
             if (!kode) return;
 
-            // ID pakai kode kompetensi supaya naik kelas tetap jalan (X-RPL-1 -> XI-RPL-1)
+            // ID pakai kode konsentrasi supaya naik kelas tetap jalan (10-RPL-1 -> 11-RPL-1)
             const prefixId = `${tingkat}-${KOMPETENSI_KEAHLIAN[jur]}-`;
             const prefixNama = `${tingkat} ${kode} `;
 
