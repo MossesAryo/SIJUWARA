@@ -1,12 +1,12 @@
 @extends('layouts.superadmin.app')
 
-@section('title', 'Manajemen Jurusan - Super Admin')
+@section('title', 'Manajemen Keahlian - Super Admin')
 
 @section('content')
     <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h2 class="text-lg font-bold text-gray-900">Manajemen Jurusan</h2>
-            <p class="text-sm text-gray-400">Kelola data jurusan sekolah ({{ number_format($totalJurusan) }} jurusan)</p>
+            <h2 class="text-lg font-bold text-gray-900">Manajemen Keahlian</h2>
+            <p class="text-sm text-gray-400">Kelola jurusan, program keahlian, dan konsentrasi keahlian ({{ number_format($totalJurusan) }} jurusan)</p>
         </div>
         <a href="{{ route('superadmin.jurusan.create') }}"
             class="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
@@ -37,7 +37,9 @@
                         <th class="px-4 py-3">No</th>
                         <th class="px-4 py-3">Kode</th>
                         <th class="px-4 py-3">Nama Jurusan</th>
-                        <th class="px-4 py-3">Kode di Nama Kelas</th>
+                        <th class="px-4 py-3">Program Keahlian | Konsentrasi Keahlian
+                            <span class="block text-[10px] font-normal normal-case tracking-normal text-gray-400">Kelas 10 | Kelas 11 &amp; 12</span>
+                        </th>
                         <th class="px-4 py-3 text-center">Kelas</th>
                         <th class="px-4 py-3 text-center">Siswa</th>
                         <th class="px-4 py-3">Ketua Program</th>
@@ -46,27 +48,44 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse ($daftarJurusan as $j)
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 text-gray-500">{{ $daftarJurusan->firstItem() + $loop->index }}</td>
-                            <td class="px-4 py-3 font-mono font-medium text-gray-700">{{ $j->id_jurusan }}</td>
-                            <td class="px-4 py-3 font-medium text-gray-900">{{ $j->nama_jurusan }}</td>
-                            <td class="px-4 py-3 text-gray-600">
-                                @if ($j->ringkasan_kode !== '')
-                                    {{ $j->ringkasan_kode }}
-                                @else
-                                    <span class="rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-700">Belum dipetakan</span>
+                        @php
+                            $no       = $daftarJurusan->firstItem() + $loop->index;
+                            // Jika jurusan punya 2 konsentrasi, tampil 2 baris (MPLB | MP dan MPLB | MLOG).
+                            $pasangan = $j->pasangan_keahlian ?: [[null, null]];
+                            $jumlah   = count($pasangan);
+                        @endphp
+
+                        @foreach ($pasangan as [$program, $konsentrasi])
+                            <tr class="hover:bg-gray-50">
+                                @if ($loop->first)
+                                    <td rowspan="{{ $jumlah }}" class="px-4 py-3 align-top text-gray-500">{{ $no }}</td>
+                                    <td rowspan="{{ $jumlah }}" class="px-4 py-3 align-top font-mono font-medium text-gray-700">{{ $j->id_jurusan }}</td>
+                                    <td rowspan="{{ $jumlah }}" class="px-4 py-3 align-top font-medium text-gray-900">{{ $j->nama_jurusan }}</td>
                                 @endif
-                            </td>
-                            <td class="px-4 py-3 text-center text-gray-600">{{ number_format($j->kelas_count) }}</td>
-                            <td class="px-4 py-3 text-center text-gray-600">{{ number_format($j->siswa_count) }}</td>
-                            <td class="px-4 py-3 text-gray-600">{{ $j->ketuaProgram->nama_ketua_program ?? '-' }}</td>
-                            <td class="whitespace-nowrap px-4 py-3 text-right">
-                                <a href="{{ route('superadmin.jurusan.edit', $j->id_jurusan) }}"
-                                    class="rounded-lg p-2 text-blue-600 hover:bg-blue-50" title="Edit"><i class="bi bi-pencil-square"></i></a>
-                                <a href="{{ route('superadmin.jurusan.hapus', $j->id_jurusan) }}"
-                                    class="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Hapus"><i class="bi bi-trash"></i></a>
-                            </td>
-                        </tr>
+
+                                <td class="px-4 py-3">
+                                    @if ($program || $konsentrasi)
+                                        <span class="rounded-lg bg-blue-50 px-2.5 py-1 font-mono text-xs font-medium text-blue-700">{{ $program ?? '-' }}</span>
+                                        <span class="px-1 text-gray-400">|</span>
+                                        <span class="rounded-lg bg-teal-50 px-2.5 py-1 font-mono text-xs font-medium text-teal-700">{{ $konsentrasi ?? '-' }}</span>
+                                    @else
+                                        <span class="rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-700">Belum dipetakan</span>
+                                    @endif
+                                </td>
+
+                                @if ($loop->first)
+                                    <td rowspan="{{ $jumlah }}" class="px-4 py-3 text-center align-top text-gray-600">{{ number_format($j->kelas_count) }}</td>
+                                    <td rowspan="{{ $jumlah }}" class="px-4 py-3 text-center align-top text-gray-600">{{ number_format($j->siswa_count) }}</td>
+                                    <td rowspan="{{ $jumlah }}" class="px-4 py-3 align-top text-gray-600">{{ $j->ketuaProgram->nama_ketua_program ?? '-' }}</td>
+                                    <td rowspan="{{ $jumlah }}" class="whitespace-nowrap px-4 py-3 text-right align-top">
+                                        <a href="{{ route('superadmin.jurusan.edit', $j->id_jurusan) }}"
+                                            class="rounded-lg p-2 text-blue-600 hover:bg-blue-50" title="Edit"><i class="bi bi-pencil-square"></i></a>
+                                        <a href="{{ route('superadmin.jurusan.hapus', $j->id_jurusan) }}"
+                                            class="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Hapus"><i class="bi bi-trash"></i></a>
+                                    </td>
+                                @endif
+                            </tr>
+                        @endforeach
                     @empty
                         <tr>
                             <td colspan="8" class="px-4 py-10 text-center text-gray-400">

@@ -8,7 +8,7 @@
             <i class="bi bi-arrow-left"></i> Kembali ke daftar
         </a>
         <h2 class="mt-2 text-lg font-bold text-gray-900">Tambah Jurusan</h2>
-        <p class="text-sm text-gray-400">Kode jurusan tidak dapat diubah setelah disimpan.</p>
+        <p class="text-sm text-gray-400">Kode jurusan masih bisa diubah setelah disimpan.</p>
     </div>
 
     <div class="max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">

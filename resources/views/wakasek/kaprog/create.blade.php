@@ -56,7 +56,7 @@
                             </option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-500">Kelas X memakai Program Keahlian, kelas XI/XII memakai Kompetensi Keahlian.</p>
+                    <p class="text-xs text-gray-500">Kelas 10 memakai Program Keahlian, kelas 11/12 memakai Kompetensi Keahlian.</p>
                 </div>
             </div>
             <div class="flex justify-end gap-2 pt-4">

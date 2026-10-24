@@ -47,7 +47,7 @@ return [
     |
     */
 
-    'expiration' => null,
+    'expiration' => 43200, // menit (30 hari); sebelumnya null = token tidak pernah kedaluwarsa
 
     /*
     |--------------------------------------------------------------------------

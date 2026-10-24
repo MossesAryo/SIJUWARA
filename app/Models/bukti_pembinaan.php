@@ -16,6 +16,6 @@ class bukti_pembinaan extends Model
 
     public function intervensi()
     {
-        return $this->belongsTo(Intervensi::class, 'intervensi_id', 'id_intervensi');
+        return $this->belongsTo(intervensi::class, 'intervensi_id', 'id_intervensi');
     }
 }

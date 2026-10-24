@@ -51,7 +51,10 @@ class Aspek_penilaianController extends Controller
     public function destroy(string $id)
     {
         try {
-        $data = aspek_penilaian::find($id)->delete();
+        if ($pesan = $this->aspekDipakai($id)) {
+            return redirect()->back()->with('error', $pesan);
+        }
+        aspek_penilaian::findOrFail($id)->delete();
 
         return redirect()->route('aspekpenilaian')->with('success', 'Aspek Penilaian berhasil dihapus');
         } catch (\Exception $e) {
@@ -152,7 +155,10 @@ class Aspek_penilaianController extends Controller
     public function destroyPenghargaan(string $id)
     {
         try {
-        $data = aspek_penilaian::find($id)->delete();
+        if ($pesan = $this->aspekDipakai($id)) {
+            return redirect()->back()->with('error', $pesan);
+        }
+        aspek_penilaian::findOrFail($id)->delete();
 
         return redirect()->route('aspek_penghargaan.index')->with('success', 'Aspek Penilaian berhasil dihapus');
         } catch (\Exception $e) {
@@ -304,7 +310,10 @@ class Aspek_penilaianController extends Controller
     public function destroyPelanggaran(string $id)
     {
         try {
-        $data = aspek_penilaian::find($id)->delete();
+        if ($pesan = $this->aspekDipakai($id)) {
+            return redirect()->back()->with('error', $pesan);
+        }
+        aspek_penilaian::findOrFail($id)->delete();
 
         return redirect()->route('aspek_pelanggaran.index')->with('success', 'Aspek Penilaian berhasil dihapus');
         } catch (\Exception $e) {
@@ -352,5 +361,18 @@ class Aspek_penilaianController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
+    }
+
+    /**
+     * FK penilaian.id_aspekpenilaian bersifat ON DELETE CASCADE: menghapus aspek yang sudah
+     * dipakai akan menghapus riwayat penilaian siswa tanpa mengoreksi poin_total mereka.
+     */
+    private function aspekDipakai($id): ?string
+    {
+        $jumlah = \Illuminate\Support\Facades\DB::table('penilaian')->where('id_aspekpenilaian', $id)->count();
+
+        return $jumlah > 0
+            ? "Aspek tidak dapat dihapus karena sudah dipakai pada {$jumlah} data penilaian siswa."
+            : null;
     }
 }

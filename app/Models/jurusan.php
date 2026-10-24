@@ -14,16 +14,33 @@ class jurusan extends Model
     protected $fillable = [
         'id_jurusan',
         'nama_jurusan',
+        'kode_program',
+        'konsentrasi',
     ];
 
-    public function getKodeProgramAttribute(): ?string
+    /** Program Keahlian (kelas 10), mis. MPLB. */
+    public function getKodeProgramAttribute($value): ?string
     {
-        return kelas::PROGRAM_KEAHLIAN[$this->id_jurusan] ?? null;
+        return $value ?: kelas::programKeahlian($this->id_jurusan);
+    }
+
+    /** Konsentrasi Keahlian (kelas 11 & 12) sebagai array, mis. ['MP', 'MLOG']. */
+    public function getDaftarKonsentrasiAttribute(): array
+    {
+        return kelas::daftarKonsentrasi($this->id_jurusan);
+    }
+
+    /** Pasangan [program, konsentrasi]; 2 konsentrasi = 2 pasangan. */
+    public function getPasanganKeahlianAttribute(): array
+    {
+        return kelas::pasanganKeahlian($this->id_jurusan);
     }
 
     public function getKodeKompetensiAttribute(): ?string
     {
-        return kelas::KOMPETENSI_KEAHLIAN[$this->id_jurusan] ?? null;
+        $daftar = $this->daftar_konsentrasi;
+
+        return $daftar ? implode(', ', $daftar) : null;
     }
 
     public function getRingkasanKodeAttribute(): string

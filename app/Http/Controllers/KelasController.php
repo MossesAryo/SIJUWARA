@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\kelas;
 use App\Models\jurusan;
 use App\Models\guru_bk;
+use App\Models\siswa;
 use App\Models\walikelas;
 use Illuminate\Http\Request;
 use App\Models\ketua_program;
@@ -15,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  * Manajemen data kelas beserta jurusan.
  * CRUD kelas, impor/ekspor, dan relasi wali atau guru BK.
  *
- * Kelas X = Program Keahlian, kelas XI/XII = Kompetensi Keahlian
+ * Kelas 10 = Program Keahlian, kelas 11/12 = Konsentrasi Keahlian
  * (lihat konstanta di model kelas).
  */
 class KelasController extends Controller
@@ -24,7 +25,10 @@ class KelasController extends Controller
     {
         $user        = Auth::user();
         $jurusanList = jurusan::all();
+
+        // siswa_count = jumlah siswa AKTIF di kelas (siswa arsip tidak dihitung).
         $query       = kelas::with('jurusan')
+                        ->withCount(['siswa' => fn ($q) => $q->where('status', 'aktif')])
                         ->where('nama_kelas', '!=', 'Alumni');
         if ($user) {
 
@@ -69,16 +73,8 @@ class KelasController extends Controller
         if ($request->filled('tingkat')) {
             $query->where(function ($q) use ($request) {
                 foreach ((array) $request->tingkat as $tingkat) {
-                    switch ($tingkat) {
-                        case 'X':
-                            $q->orWhere('nama_kelas', 'REGEXP', '^X ');
-                            break;
-                        case 'XI':
-                            $q->orWhere('nama_kelas', 'LIKE', 'XI %');
-                            break;
-                        case 'XII':
-                            $q->orWhere('nama_kelas', 'LIKE', 'XII %');
-                            break;
+                    if (in_array($tingkat, kelas::TINGKAT, true)) {
+                        $q->orWhere('nama_kelas', 'LIKE', $tingkat . ' %');
                     }
                 }
             });
@@ -114,26 +110,26 @@ class KelasController extends Controller
                     break;
                 case 'tingkat_asc':
                     $query->orderByRaw("CASE
-                        WHEN nama_kelas LIKE 'X %' THEN 1
-                        WHEN nama_kelas LIKE 'XI %' THEN 2
-                        WHEN nama_kelas LIKE 'XII %' THEN 3
+                        WHEN nama_kelas LIKE '10 %' THEN 1
+                        WHEN nama_kelas LIKE '11 %' THEN 2
+                        WHEN nama_kelas LIKE '12 %' THEN 3
                         ELSE 4 END")
                         ->orderBy('nama_kelas', 'asc');
                     break;
                 case 'tingkat_desc':
                     $query->orderByRaw("CASE
-                        WHEN nama_kelas LIKE 'XII %' THEN 1
-                        WHEN nama_kelas LIKE 'XI %' THEN 2
-                        WHEN nama_kelas LIKE 'X %' THEN 3
+                        WHEN nama_kelas LIKE '12 %' THEN 1
+                        WHEN nama_kelas LIKE '11 %' THEN 2
+                        WHEN nama_kelas LIKE '10 %' THEN 3
                         ELSE 4 END")
                         ->orderBy('nama_kelas', 'asc');
                     break;
             }
         } else {
             $query->orderByRaw("CASE
-                WHEN nama_kelas LIKE 'X %' THEN 1
-                WHEN nama_kelas LIKE 'XI %' THEN 2
-                WHEN nama_kelas LIKE 'XII %' THEN 3
+                WHEN nama_kelas LIKE '10 %' THEN 1
+                WHEN nama_kelas LIKE '11 %' THEN 2
+                WHEN nama_kelas LIKE '12 %' THEN 3
                 ELSE 4 END")
                 ->orderBy('nama_kelas', 'asc');
         }
@@ -141,6 +137,74 @@ class KelasController extends Controller
         $kelas = $query->paginate(10)->appends($request->all());
 
         return view('wakasek.kelas.kelas', compact('kelas', 'jurusanList'));
+    }
+
+    /**
+     * Daftar siswa aktif satu kelas (JSON), dipakai popup "Jumlah Siswa" di halaman kelas.
+     * Hak akses mengikuti halaman kelas: Ketua Program hanya jurusannya,
+     * Guru BK dan Walikelas hanya kelas yang dipegang.
+     */
+    public function siswa(string $id)
+    {
+        $kelas = kelas::with('jurusan')->where('id_kelas', $id)->firstOrFail();
+
+        $this->pastikanBolehMelihat($kelas);
+
+        $daftar = siswa::query()
+            ->where('id_kelas', $kelas->id_kelas)
+            ->where('status', 'aktif')
+            ->orderBy('nama_siswa')
+            ->get(['nis', 'nama_siswa']);
+
+        return response()->json([
+            'id_kelas'   => $kelas->id_kelas,
+            'nama_kelas' => $kelas->nama_kelas,
+            'jurusan'    => optional($kelas->jurusan)->nama_jurusan ?? $kelas->id_jurusan,
+            'jumlah'     => $daftar->count(),
+            'siswa'      => $daftar->map(fn ($s) => [
+                'nis'  => (string) $s->nis,
+                'nama' => $s->nama_siswa,
+            ])->values(),
+        ]);
+    }
+
+    /**
+     * Batasi akses per role, sama seperti filter di index().
+     */
+    private function pastikanBolehMelihat(kelas $kelas): void
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            abort(403);
+        }
+
+        // Ketua Program: hanya kelas di jurusannya.
+        if ($user->role == '4') {
+            $ketua = ketua_program::where('username', $user->username)->first();
+
+            if (!$ketua || $ketua->id_jurusan !== $kelas->id_jurusan) {
+                abort(403, 'Kelas ini bukan bagian dari program Anda.');
+            }
+        }
+
+        // Guru BK: hanya kelas yang dipegang.
+        if ($user->role == '2') {
+            $guru = guru_bk::where('username', $user->username)->first();
+
+            if (!$guru || !in_array($kelas->id_kelas, $guru->kelas()->pluck('kelas.id_kelas')->toArray(), true)) {
+                abort(403, 'Kelas ini tidak Anda pegang.');
+            }
+        }
+
+        // Walikelas: hanya kelasnya sendiri.
+        if ($user->role == '3') {
+            $wali = walikelas::where('username', $user->username)->first();
+
+            if (!$wali || $wali->id_kelas !== $kelas->id_kelas) {
+                abort(403, 'Kelas ini bukan kelas Anda.');
+            }
+        }
     }
 
     public function FetchApi()
@@ -246,6 +310,27 @@ class KelasController extends Controller
     public function destroy(string $id)
     {
         try {
+            // FK siswa.id_kelas & walikelas.id_kelas bersifat ON DELETE CASCADE:
+            // tanpa pengecekan ini, menghapus kelas ikut menghapus seluruh siswa
+            // (termasuk arsip) beserta penilaian, intervensi, dan catatannya.
+            $jumlahSiswa = \Illuminate\Support\Facades\DB::table('siswa')
+                ->where('id_kelas', $id)
+                ->count();
+
+            if ($jumlahSiswa > 0) {
+                return redirect()->back()->with(
+                    'error',
+                    "Kelas tidak dapat dihapus karena masih memiliki {$jumlahSiswa} siswa (termasuk arsip). Pindahkan siswanya terlebih dahulu."
+                );
+            }
+
+            if (\Illuminate\Support\Facades\DB::table('walikelas')->where('id_kelas', $id)->exists()) {
+                return redirect()->back()->with(
+                    'error',
+                    'Kelas tidak dapat dihapus karena masih memiliki wali kelas. Pindahkan atau hapus wali kelasnya terlebih dahulu.'
+                );
+            }
+
             kelas::where('id_kelas', $id)->delete();
 
             return redirect()->route('kelas')->with('success', 'Kelas berhasil dihapus');

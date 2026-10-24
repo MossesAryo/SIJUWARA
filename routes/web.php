@@ -15,11 +15,13 @@ use App\Http\Controllers\Guru_bkController;
 use App\Http\Controllers\IntervensiController;
 use App\Http\Controllers\KetuaProgramController;
 use App\Http\Controllers\KelasController;
+use App\Http\Controllers\KelasTujuanController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\listcatatanController;
 use App\Http\Controllers\NotifikasiWakasekController;
 use App\Http\Controllers\PenilaianController;
 use App\Http\Controllers\PenghargaanController;
+use App\Http\Controllers\PerpindahanKelasController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SiswaController;
 use App\Http\Controllers\Skoring_PelanggaranController;
@@ -29,9 +31,8 @@ use App\Http\Controllers\SuperAdmin\ActivityLogController;
 use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
 use App\Http\Controllers\SuperAdmin\JurusanController as SuperAdminJurusanController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
-use App\Http\Controllers\SuperAdmin\RoleController;
 use App\Http\Controllers\SuperAdmin\SiswaArsipController;
-use App\Http\Controllers\SuperAdmin\WakasekController as SuperAdminWakasekController;
+use App\Http\Controllers\SuperAdmin\UserController;
 use App\Http\Controllers\SuratPeringatanController;
 use App\Http\Controllers\TahunAjaranController;
 use App\Http\Controllers\WalikelasController;
@@ -45,7 +46,7 @@ use App\Http\Controllers\catatanController;
 
 // Authentication
 Route::get('/', [AController::class, 'index'])->name('login');
-Route::post('/login', [AController::class, 'login'])->name('login.submit');
+Route::post('/login', [AController::class, 'login'])->middleware('throttle:5,1')->name('login.submit');
 Route::get('/logout', [AController::class, 'logout'])->name('logout');
 
 // Authenticated Routes
@@ -127,15 +128,11 @@ Route::middleware(['auth'])->group(function () {
     // Skoring Penghargaan
     Route::get('/skoring_penghargaan', [Skoring_PenghargaanController::class, 'index'])->name('skoring_penghargaan.index');
     Route::post('/skoring_penghargaan/store', [Skoring_PenghargaanController::class, 'store'])->name('skoring_penghargaan.store');
-    Route::put('/skoring_penghargaan/{id}/update', [Skoring_PenghargaanController::class, 'update'])->name('skoring_penghargaan.update');
     Route::delete('/skoring_penghargaan/{id}/destroy', [Skoring_PenghargaanController::class, 'destroy'])->name('skoring_penghargaan.destroy');
-    Route::get('/skoring_penghargaan/export_pdf', [Skoring_PenghargaanController::class, 'export_pdf'])->name('skoring_penghargaan.export.pdf');
-    Route::get('/skoring_penghargaan/export', [Skoring_PenghargaanController::class, 'export_excel'])->name('skoring_penghargaan.export.excel');
 
     // Skoring Pelanggaran
     Route::get('/skoring_pelanggaran', [Skoring_PelanggaranController::class, 'index'])->name('skoring_pelanggaran.index');
     Route::post('/skoring_pelanggaran/store', [Skoring_PelanggaranController::class, 'store'])->name('skoring_pelanggaran.store');
-    Route::put('/skoring_pelanggaran/{id}/update', [Skoring_PelanggaranController::class, 'update'])->name('skoring_pelanggaran.update');
     Route::delete('/skoring_pelanggaran/{id}/destroy', [Skoring_PelanggaranController::class, 'destroy'])->name('skoring_pelanggaran.destroy');
 
     // Akumulasi
@@ -146,7 +143,6 @@ Route::middleware(['auth'])->group(function () {
     // Laporan & Notifikasi
     Route::get('/notifikasi', [NotifikasiWakasekController::class, 'index'])->name('notifikasi.index');
     Route::get('/laporanjammalam', [LaporanController::class, 'index'])->name('wakasek.laporanjammalam');
-    Route::get('/penilaian', [PenilaianController::class, 'index'])->name('wakasek.penilaian');
     Route::get('/laporan', [LaporanController::class, 'index'])->name('laporan.index');
     Route::get('/laporan/export/pdf', [LaporanController::class, 'exportPdf'])->name('laporan.export.pdf');
     Route::get('/laporan/export/excel', [LaporanController::class, 'exportExcel'])->name('laporan.export.excel');
@@ -162,8 +158,23 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/ketua_program/import', [KetuaProgramController::class, 'import'])->name('ketua_program.import');
     Route::get('/ketua_program/template', [KetuaProgramController::class, 'template'])->name('ketua_program.template');
 
+    // Rencana Perpindahan Kelas 10 -> 11 (khusus Ketua Program).
+    // Hanya menyimpan rencana; siswa pindah saat Wakasek mengganti tahun ajaran.
+    Route::get('/kaprog/perpindahan-kelas', [PerpindahanKelasController::class, 'index'])
+        ->middleware('UserAccess:4')
+        ->name('perpindahan_kelas.index');
+    Route::post('/kaprog/perpindahan-kelas', [PerpindahanKelasController::class, 'simpan'])
+        ->middleware('UserAccess:4')
+        ->name('perpindahan_kelas.simpan');
+    Route::post('/kaprog/perpindahan-kelas/batal', [PerpindahanKelasController::class, 'batal'])
+        ->middleware('UserAccess:4')
+        ->name('perpindahan_kelas.batal');
+
     // Kelas
     Route::get('/kelas', [KelasController::class, 'index'])->name('kelas');
+    Route::get('/kelas/{id}/siswa', [KelasController::class, 'siswa'])
+        ->where('id', '[A-Za-z0-9\-]+')
+        ->name('kelas.siswa');
     Route::post('/kelas/store', [KelasController::class, 'store'])->name('kelas.store');
     Route::put('/kelas/{id}/update', [KelasController::class, 'update'])->name('kelas.update');
     Route::delete('/kelas/{id}', [KelasController::class, 'destroy'])->name('kelas.destroy');
@@ -189,22 +200,22 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/walikelas/import', [WalikelasController::class, 'import'])->name('walikelas.import');
 
     // Aspek Penilaian General
-    Route::get('/aspekpenilaian', [Aspek_penilaianController::class, 'index'])->name('aspekpenilaian');
-    Route::post('/aspekpenilaian/store', [Aspek_penilaianController::class, 'store'])->name('aspekpenilaian.store');
-    Route::put('/aspekpenilaian/{id}/update', [Aspek_penilaianController::class, 'update'])->name('aspekpenilaian.update');
+    // Halaman umum belum ada; arahkan ke daftar aspek penghargaan (nama route dipakai redirect destroy()).
+    Route::redirect('/aspekpenilaian', '/aspek_penghargaan')->name('aspekpenilaian');
     Route::delete('/aspekpenilaian/{id}/destroy', [Aspek_penilaianController::class, 'destroy'])->name('aspekpenilaian.destroy');
 
     // Intervensi & Status
     Route::get('/statusintervensi', [StatusIntervensiController::class, 'index'])->name('statusintervensi.index');
     Route::get('/statusintervensi/{id_intervensi}', [StatusIntervensiController::class, 'show'])->name('statusintervensi.show');
     Route::get('/intervensi', [IntervensiController::class, 'index'])->name('intervensi.index');
+    // Harus di atas /intervensi/{id_intervensi}, kalau tidak 'export_pdf' dianggap sebagai id.
+    Route::get('/intervensi/export_pdf', [IntervensiController::class, 'exportPdf'])->name('intervensi.export.pdf');
+    Route::get('/intervensi/export_excel', [IntervensiController::class, 'exportExcel'])->name('intervensi.export.excel');
     Route::get('/intervensi/{id_intervensi}', [IntervensiController::class, 'show'])->name('intervensi.show');
     Route::get('/intervensi/{id_intervensi}/get-files', [IntervensiController::class, 'getFiles'])->name('intervensi.getFiles');
     Route::post('/intervensi/store', [IntervensiController::class, 'store'])->name('intervensi.store');
     Route::put('/intervensi/{id_intervensi}/update', [IntervensiController::class, 'update'])->name('intervensi.update');
     Route::delete('/intervensi/{id_intervensi}/destroy', [IntervensiController::class, 'destroy'])->name('intervensi.destroy');
-    Route::get('/intervensi/export_pdf', [IntervensiController::class, 'exportPdf'])->name('intervensi.export.pdf');
-    Route::get('/intervensi/export_excel', [IntervensiController::class, 'exportExcel'])->name('intervensi.export.excel');
 
     // Catatan
     Route::get('/catatan', [listcatatanController::class, 'index'])->name('catatan.index');
@@ -215,6 +226,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tahun-ajaran/update', [TahunAjaranController::class, 'update'])
         ->middleware('UserAccess:1,5')
         ->name('tahun_ajaran.update');
+    Route::post('/tahun-ajaran/kelas-tujuan', [KelasTujuanController::class, 'store'])
+        ->middleware('UserAccess:1,5')
+        ->name('tahun_ajaran.kelas_tujuan');
 });
 
 // Super Admin (role 5)
@@ -227,24 +241,18 @@ Route::middleware(['auth', 'UserAccess:5'])
         Route::get('/dashboard', [SuperAdminDashboardController::class, 'index'])
             ->name('dashboard');
 
-        // Manajemen Wakasek
-        Route::get('/wakasek', [SuperAdminWakasekController::class, 'index'])->name('wakasek.index');
-        Route::get('/wakasek/create', [SuperAdminWakasekController::class, 'create'])->name('wakasek.create');
-        Route::post('/wakasek', [SuperAdminWakasekController::class, 'store'])->name('wakasek.store');
-        Route::get('/wakasek/{nip}', [SuperAdminWakasekController::class, 'show'])->whereNumber('nip')->name('wakasek.show');
-        Route::get('/wakasek/{nip}/edit', [SuperAdminWakasekController::class, 'edit'])->whereNumber('nip')->name('wakasek.edit');
-        Route::put('/wakasek/{nip}', [SuperAdminWakasekController::class, 'update'])->whereNumber('nip')->name('wakasek.update');
-        Route::get('/wakasek/{nip}/hapus', [SuperAdminWakasekController::class, 'konfirmasiHapus'])->whereNumber('nip')->name('wakasek.hapus');
-        Route::delete('/wakasek/{nip}', [SuperAdminWakasekController::class, 'destroy'])->whereNumber('nip')->name('wakasek.destroy');
+        // Manajemen User (gabungan Manajemen Wakasek + Manajemen Role)
+        Route::get('/user', [UserController::class, 'index'])->name('user.index');
+        Route::get('/user/create', [UserController::class, 'create'])->name('user.create');
+        Route::post('/user', [UserController::class, 'store'])->name('user.store');
+        Route::get('/user/{id}/edit', [UserController::class, 'edit'])->whereNumber('id')->name('user.edit');
+        Route::put('/user/{id}', [UserController::class, 'update'])->whereNumber('id')->name('user.update');
+        Route::get('/user/{id}/hapus', [UserController::class, 'konfirmasiHapus'])->whereNumber('id')->name('user.hapus');
+        Route::delete('/user/{id}', [UserController::class, 'destroy'])->whereNumber('id')->name('user.destroy');
 
-        // Manajemen Role
-        Route::get('/role', [RoleController::class, 'index'])->name('role.index');
-        Route::get('/role/create', [RoleController::class, 'create'])->name('role.create');
-        Route::post('/role', [RoleController::class, 'store'])->name('role.store');
-        Route::get('/role/{id}/edit', [RoleController::class, 'edit'])->whereNumber('id')->name('role.edit');
-        Route::put('/role/{id}', [RoleController::class, 'update'])->whereNumber('id')->name('role.update');
-        Route::get('/role/{id}/delete', [RoleController::class, 'konfirmasiHapus'])->whereNumber('id')->name('role.hapus');
-        Route::delete('/role/{id}', [RoleController::class, 'destroy'])->whereNumber('id')->name('role.destroy');
+        // Alamat lama (bookmark) diarahkan ke Manajemen User.
+        Route::redirect('/role', '/superadmin/user');
+        Route::redirect('/wakasek', '/superadmin/user?role=1');
 
         // Manajemen Jurusan
         Route::get('/jurusan', [SuperAdminJurusanController::class, 'index'])->name('jurusan.index');

@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 // PERBAIKAN: Gunakan huruf besar awal untuk nama Model agar sesuai standar PSR-4
-use App\Models\Kelas;
-use App\Models\Siswa;
-use App\Models\Walikelas;
-use App\Models\Ketua_program; // Sesuaikan jika nama file model berbeda (misal: KetuaProgram.php)
-use App\Models\Guru_bk;      // Sesuaikan jika nama file model berbeda (misal: GuruBk.php)
-use App\Models\Jurusan;      // Sesuaikan jika nama file model berbeda (misal: Jurusan.php)
+use App\Models\kelas as Kelas;
+use App\Models\siswa as Siswa;
+use App\Models\walikelas as Walikelas;
+use App\Models\ketua_program as Ketua_program; // Sesuaikan jika nama file model berbeda (misal: KetuaProgram.php)
+use App\Models\guru_bk as Guru_bk;      // Sesuaikan jika nama file model berbeda (misal: GuruBk.php)
+use App\Models\jurusan as Jurusan;      // Sesuaikan jika nama file model berbeda (misal: Jurusan.php)
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -121,10 +121,33 @@ class AkumulasiController extends Controller
 
             // Pastikan class Export Excel ini sudah ada di app/Exports/AkumulasiExport.php
             // Jika belum ada, buat dulu atau comment baris ini sementara
-            return Excel::download(new \App\Exports\AkumulasiExport($akumulasi), 'akumulasi.xlsx');
+            return Excel::download(new \App\Exports\Akumulasi_ExportExcel($akumulasi), 'akumulasi.xlsx');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Gagal membuat Excel: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Endpoint API (mobile): daftar akumulasi poin siswa sesuai role pengguna.
+     * GET /api/akumulasi?search=&kelas=&jurusan=&per_page=
+     */
+    public function fetchAPI(Request $request)
+    {
+        $user  = Auth::user();
+        $query = Siswa::with(['kelas.jurusan']);
+
+        $query = $this->applyRoleScope($query, $user);
+        $query = $this->applyRequestFilters($request, $query, $user);
+
+        $perPage = min(max((int) $request->query('per_page', 50), 1), 200);
+
+        $data = $query->orderBy('nama_siswa')->paginate($perPage)->appends($request->query());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data akumulasi berhasil diambil',
+            'data'    => $data,
+        ], 200);
     }
 
     // Helper untuk Role Scope (digunakan di export)

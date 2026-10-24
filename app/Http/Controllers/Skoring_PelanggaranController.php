@@ -13,6 +13,7 @@ use App\Models\guru_bk;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Skoring pelanggaran siswa.
@@ -37,12 +38,12 @@ class Skoring_PelanggaranController extends Controller
         if ($user->role == 4) {
             $ketua = ketua_program::where('username', $user->username)->first();
 
-            if ($ketua && $ketua->jurusan) {
-                $jurusanKetua = $ketua->jurusan;
+            if ($ketua && $ketua->id_jurusan) {
+                $jurusanKetua = $ketua->id_jurusan;
 
                 // Filter penilaian berdasarkan jurusan ketua program
                 $query->whereHas('siswa.kelas', function ($q) use ($jurusanKetua) {
-                    $q->where('jurusan', $jurusanKetua);
+                    $q->where('id_jurusan', $jurusanKetua);
                 });
             }
         }
@@ -110,7 +111,7 @@ class Skoring_PelanggaranController extends Controller
 
         // Tentukan list kelas untuk dropdown filter
         $kelasList = ($jurusanKetua)
-            ? kelas::where('jurusan', $jurusanKetua)->get()
+            ? kelas::where('id_jurusan', $jurusanKetua)->get()
             : kelas::all();
         $kelasListWalikelas = ($kelasWalikelas)
             ? kelas::where('id_kelas', $kelasWalikelas)->get()
@@ -121,7 +122,7 @@ class Skoring_PelanggaranController extends Controller
         if ($user->role == 4 && $jurusanKetua) {
             // Kaprog hanya boleh melihat siswa dengan jurusan yang sama
             $siswaList->whereHas('kelas', function ($q) use ($jurusanKetua) {
-                $q->where('jurusan', $jurusanKetua);
+                $q->where('id_jurusan', $jurusanKetua);
             });
         }
         if ($user->role == 2) {
@@ -158,52 +159,52 @@ class Skoring_PelanggaranController extends Controller
     {
         try {
             $request->validate([
-                'nis'               => 'required',
-                'id_aspekpenilaian' => 'required',
+                'nis'               => 'required|exists:siswa,nis',
+                'id_aspekpenilaian' => 'required|exists:aspek_penilaian,id_aspekpenilaian',
             ]);
 
-            $user = Auth::user();
-            $aspek   = aspek_penilaian::findOrFail($request->id_aspekpenilaian);
-            $skor    = (int) $aspek->indikator_poin;
-            $uraian  = $aspek->uraian;
+            // Ambil skor & uraian dari aspek_penilaian
+            $aspek  = aspek_penilaian::findOrFail($request->id_aspekpenilaian);
+            $skor   = (int) $aspek->indikator_poin;
+            $uraian = $aspek->uraian;
+            $user   = Auth::user();
 
-            // Simpan penilaian
-            penilaian::create([
+            // Penilaian, poin siswa, dan log disimpan atomik: gagal sebagian = batal semua.
+            DB::transaction(function () use ($request, $user, $skor, $uraian) {
+                $siswa = siswa::where('nis', $request->nis)->lockForUpdate()->firstOrFail();
 
-                'nis'               => $request->nis,
-                'id_aspekpenilaian' => $request->id_aspekpenilaian,
+                penilaian::create([
+                    'nis'               => $request->nis,
+                    'id_aspekpenilaian' => $request->id_aspekpenilaian,
+                    'nip_bk'            => $user->gurubk->nip_bk ?? null,
+                    'nip_walikelas'     => $user->walikelas->nip_walikelas ?? null,
+                    'nip_wakasek'       => $user->wakasek->nip_wakasek ?? null,
+                    'created_at'        => now(),
+                ]);
 
-                'nip_bk'        => $user->gurubk->nip_bk ?? null,
-                'nip_walikelas' => $user->walikelas->nip_walikelas ?? null,
-                'nip_wakasek'   => $user->wakasek->nip_wakasek ?? null,
-                'created_at'        => now(),
-
-            ]);
-
-            // Update poin siswa
-            $siswa = siswa::where('nis', $request->nis)->first();
-            $user = Auth::user();
-            if ($siswa) {
-                $siswa->poin_pelanggaran += $skor;
-                $siswa->poin_total       -= $skor;
+                $siswa->poin_pelanggaran = (int) $siswa->poin_pelanggaran + $skor;
+                $siswa->poin_total       = (int) $siswa->poin_total - $skor;
                 $siswa->save();
 
-                // Insert ke activity_logs
                 DB::table('activity_logs')->insert([
                     'user_id'     => $user->id,
                     'nis'         => $siswa->nis,
                     'kategori'    => 'Pelanggaran',
                     'activity'    => 'Tambah Pelanggaran',
-                    'description' => $uraian, // gunakan uraian aspek_penilaian
+                    'description' => $uraian,
                     'point'       => $skor,
                     'created_at'  => now(),
                     'updated_at'  => now(),
                 ]);
-            }
+            });
 
             return redirect()->route('skoring_pelanggaran.index')
                 ->with('success', 'Data pelanggaran berhasil ditambahkan.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
+            Log::error('Gagal menyimpan skoring', ['error' => $e->getMessage()]);
+
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
     }
@@ -220,32 +221,37 @@ class Skoring_PelanggaranController extends Controller
     {
         try {
             $skoring = penilaian::findOrFail($id);
-            $siswa   = $skoring->siswa;
-            $skor    = $skoring->aspek_penilaian->indikator_poin ?? 0;
-            $uraian  = $skoring->aspek_penilaian->uraian ?? '-';
-            $user = Auth::user();
+            $user    = Auth::user();
 
-            if ($siswa) {
-                $siswa->poin_pelanggaran -= $skor;
-                $siswa->poin_total       += $skor;
-                $siswa->save();
+            DB::transaction(function () use ($skoring, $user) {
+                $siswa  = $skoring->siswa;
+                $skor   = (int) ($skoring->aspek_penilaian->indikator_poin ?? 0);
+                $uraian = $skoring->aspek_penilaian->uraian ?? '-';
 
-                DB::table('activity_logs')->insert([
-                    'user_id'     => $user->id,
-                    'nis'         => $siswa->nis,
-                    'kategori'    => 'Pelanggaran',
-                    'activity'    => 'Hapus Pelanggaran',
-                    'description' => $uraian, // gunakan uraian aspek_penilaian
-                    'point'       => $skor,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
-                ]);
-            }
+                if ($siswa) {
+                    $siswa->poin_pelanggaran = (int) $siswa->poin_pelanggaran - $skor;
+                    $siswa->poin_total       = (int) $siswa->poin_total + $skor;
+                    $siswa->save();
 
-            $skoring->delete();
+                    DB::table('activity_logs')->insert([
+                        'user_id'     => $user->id,
+                        'nis'         => $siswa->nis,
+                        'kategori'    => 'Pelanggaran',
+                        'activity'    => 'Hapus Pelanggaran',
+                        'description' => $uraian,
+                        'point'       => $skor,
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
+                    ]);
+                }
+
+                $skoring->delete();
+            });
 
             return redirect()->back()->with('success', 'Skoring berhasil dihapus!');
         } catch (\Exception $e) {
+            Log::error('Gagal menghapus skoring', ['error' => $e->getMessage()]);
+
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
     }

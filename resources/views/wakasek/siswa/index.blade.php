@@ -185,7 +185,7 @@
                                         <div class="text-sm font-semibold text-gray-900">@if ($item->status != 'alumni')
                                           {{$item->kelas->nama_kelas ?? '-' }}
                                         @else
-                                        {{ \App\Models\kelas::KOMPETENSI_KEAHLIAN[$item->id_jurusan] ?? ($item->id_jurusan ?? '-') }} 
+                                        {{ \App\Models\kelas::kodeKeahlian($item->id_jurusan, '12') ?? ($item->id_jurusan ?? '-') }} 
                                         @endif
                                         </div>
                                     </td>

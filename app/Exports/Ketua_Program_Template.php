@@ -17,7 +17,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *
  * Penting: Ketua_Program_Import memakai headingRow() = 2, jadi
  * baris 1 = judul, baris 2 = judul kolom, data mulai baris 3.
- * Judul kolom di-slug oleh Maatwebsite: nip, username, nama_ketua_program, jurusan.
+ * Judul kolom di-slug oleh Maatwebsite: nip, username,
+ * nama_ketua_program, jurusan.
  */
 class Ketua_Program_Template implements WithMultipleSheets
 {
@@ -34,8 +35,15 @@ class Ketua_Program_Template implements WithMultipleSheets
             new class implements FromArray, WithHeadings, WithTitle, WithStyles, ShouldAutoSize {
                 public function array(): array
                 {
-                    // Sengaja kosong: baris contoh bisa ikut ter-import tanpa sengaja.
-                    return [];
+                    // Baris 3 = contoh. Nama/username diawali "CONTOH" supaya dilewati saat import.
+                    return [
+                        [
+                            '196501011990031001',
+                            'contoh.budi',
+                            'CONTOH - Budi Santoso, S.Pd',
+                            'RPL',
+                        ],
+                    ];
                 }
 
                 public function headings(): array
@@ -53,12 +61,20 @@ class Ketua_Program_Template implements WithMultipleSheets
 
                 public function styles(Worksheet $sheet)
                 {
-                    // NIP berupa angka panjang, paksa jadi teks agar tidak jadi 1.9E+17
-                    $sheet->getStyle('A3:A5000')->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+                    // NIP berupa angka panjang, paksa jadi teks agar tidak menjadi 1.9E+17.
+                    $sheet->getStyle('A3:A5000')
+                        ->getNumberFormat()
+                        ->setFormatCode(NumberFormat::FORMAT_TEXT);
 
                     return [
                         1 => ['font' => ['bold' => true, 'size' => 14]],
                         2 => ['font' => ['bold' => true]],
+                        3 => [
+                            'font' => [
+                                'italic' => true,
+                                'color' => ['rgb' => '808080'],
+                            ],
+                        ],
                     ];
                 }
             },
@@ -73,6 +89,7 @@ class Ketua_Program_Template implements WithMultipleSheets
                     '3. Username wajib diisi dan harus unik. Baris tanpa username dilewati.',
                     '4. Kolom Jurusan diisi dengan Id Jurusan dari daftar di bawah (contoh: RPL).',
                     '5. Akun login dibuat otomatis dari Username dengan password default.',
+                    '6. Baris contoh (nama diawali CONTOH) dilewati saat import. Boleh dihapus atau ditimpa.',
                 ];
 
                 public function __construct($jurusan)
@@ -89,7 +106,7 @@ class Ketua_Program_Template implements WithMultipleSheets
                     }
 
                     $rows[] = [];
-                    $rows[] = ['Id Jurusan', 'Nama Jurusan', 'Kode Program / Kompetensi'];
+                    $rows[] = ['Id Jurusan', 'Nama Jurusan', 'Program | Konsentrasi'];
 
                     foreach ($this->jurusan as $j) {
                         $rows[] = [
@@ -109,16 +126,20 @@ class Ketua_Program_Template implements WithMultipleSheets
 
                 public function columnWidths(): array
                 {
-                    return ['A' => 16, 'B' => 36, 'C' => 32];
+                    return [
+                        'A' => 16,
+                        'B' => 36,
+                        'C' => 32,
+                    ];
                 }
 
                 public function styles(Worksheet $sheet)
                 {
-                    // baris judul tabel = jumlah petunjuk + 1 baris kosong + 1
+                    // Baris judul tabel = jumlah petunjuk + 1 baris kosong + 1.
                     $barisHeader = count(self::PETUNJUK) + 2;
 
                     return [
-                        1            => ['font' => ['bold' => true]],
+                        1 => ['font' => ['bold' => true]],
                         $barisHeader => ['font' => ['bold' => true]],
                     ];
                 }

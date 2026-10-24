@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\KelasController;
 use App\Http\Controllers\SiswaController;
 use App\Http\Controllers\catatanController;
-use App\Http\Controllers\AkumulasiContoller;
+use App\Http\Controllers\AkumulasiController;
 use App\Http\Controllers\api\NotifikasiController;
 use App\Http\Controllers\PenghargaanController;
 use App\Http\Controllers\api\skoringpelanggaran;
@@ -29,7 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/Penghargaan',    [PenghargaanController::class,     'FetchApi'])->name('api.penghargaan');
     Route::get('/peringatan',     [SuratPeringatanController::class, 'FetchApi'])->name('api.peringatan');
     Route::get('/siswa',          [SiswaController::class,           'FetchApi'])->name('api.siswa');
-    Route::get('/akumulasi',      [AkumulasiContoller::class,        'fetchAPI']);
+    Route::get('/akumulasi',      [AkumulasiController::class,        'fetchAPI']);
     Route::get('/notifikasi',     [NotifikasiController::class,      'index']);
 
     Route::get('/skoring_penghargaan',  [SkoringPenghargaan::class,  'index']);

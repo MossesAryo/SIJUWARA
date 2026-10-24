@@ -1,6 +1,6 @@
 @extends('layouts.superadmin.app')
 
-@section('title', 'Manajemen Role - Super Admin')
+@section('title', 'Manajemen User - Super Admin')
 
 @section('content')
     @php
@@ -15,10 +15,10 @@
 
     <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h2 class="text-lg font-bold text-gray-900">Manajemen Role</h2>
-            <p class="text-sm text-gray-400">Daftar akun pengguna beserta role-nya. Super Admin dapat menambah, mengubah, dan menghapus akun.</p>
+            <h2 class="text-lg font-bold text-gray-900">Manajemen User</h2>
+            <p class="text-sm text-gray-400">Kelola akun semua role (Wakasek, Guru BK, Wali Kelas, Ketua Program, dan Super Admin) dari satu halaman.</p>
         </div>
-        <a href="{{ route('superadmin.role.create', in_array($roleDipilih, [2, 3, 4], true) ? ['role' => $roleDipilih] : []) }}"
+        <a href="{{ route('superadmin.user.create', in_array($roleDipilih, [1, 2, 3, 4, 5], true) ? ['role' => $roleDipilih] : []) }}"
             class="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
             style="background: linear-gradient(135deg, #4a7ab5, #1e3a5f);">
             <i class="bi bi-plus-lg"></i> Tambah Akun
@@ -28,21 +28,20 @@
     <div class="mb-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
         <i class="bi bi-info-circle mt-0.5"></i>
         <span>
-            Role tidak diubah dari halaman ini karena ditentukan oleh data profil pengguna
-            (Wakasek, Guru BK, Wali Kelas, Ketua Program). NIP dan username juga dikunci.
-            Akun Wali Kelas, Guru BK, dan Ketua Program ditambahkan lewat tombol Tambah Akun; akun Wakasek lewat menu Wakasek.
+            Semua role dibuat lewat tombol Tambah Akun, termasuk Wakasek dan Super Admin.
+            Role, NIP, dan username dikunci setelah akun dibuat karena menjadi kunci relasi data.
             Menghapus akun akan ikut menghapus riwayat kerjanya, jadi periksa dulu di halaman konfirmasi.
         </span>
     </div>
 
     {{-- Filter role --}}
     <div class="mb-4 flex flex-wrap gap-2">
-        <a href="{{ route('superadmin.role.index', array_filter(['q' => $q])) }}"
+        <a href="{{ route('superadmin.user.index', array_filter(['q' => $q])) }}"
             class="rounded-full border px-3 py-1.5 text-sm {{ $roleDipilih === null ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50' }}">
             Semua <span class="ml-1 opacity-75">{{ number_format($totalSemua) }}</span>
         </a>
         @foreach ($daftarRole as $r)
-            <a href="{{ route('superadmin.role.index', array_filter(['q' => $q, 'role' => $r['kode']], fn ($v) => $v !== '' && $v !== null)) }}"
+            <a href="{{ route('superadmin.user.index', array_filter(['q' => $q, 'role' => $r['kode']], fn ($v) => $v !== '' && $v !== null)) }}"
                 class="rounded-full border px-3 py-1.5 text-sm {{ $roleDipilih === $r['kode'] ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50' }}">
                 {{ $r['label'] }} <span class="ml-1 opacity-75">{{ number_format($r['total']) }}</span>
             </a>
@@ -50,7 +49,7 @@
     </div>
 
     <div class="rounded-2xl border border-gray-200 bg-white">
-        <form method="GET" action="{{ route('superadmin.role.index') }}"
+        <form method="GET" action="{{ route('superadmin.user.index') }}"
             class="flex flex-col gap-2 border-b border-gray-100 p-4 sm:flex-row">
             @if ($roleDipilih !== null)
                 <input type="hidden" name="role" value="{{ $roleDipilih }}">
@@ -62,7 +61,7 @@
             </div>
             <button type="submit" class="rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white">Cari</button>
             @if ($q !== '' || $roleDipilih !== null)
-                <a href="{{ route('superadmin.role.index') }}"
+                <a href="{{ route('superadmin.user.index') }}"
                     class="rounded-lg border border-gray-200 px-4 py-2 text-center text-sm text-gray-600 hover:bg-gray-50">Reset</a>
             @endif
         </form>
@@ -111,7 +110,7 @@
                                 @endif
                             </td>
                             <td class="whitespace-nowrap px-4 py-3 text-right">
-                                <a href="{{ route('superadmin.role.edit', $p['id']) }}"
+                                <a href="{{ route('superadmin.user.edit', $p['id']) }}"
                                     class="rounded-lg p-2 text-blue-600 hover:bg-blue-50" title="Edit">
                                     <i class="bi bi-pencil-square"></i>
                                 </a>
@@ -121,7 +120,7 @@
                                         <i class="bi bi-trash"></i>
                                     </span>
                                 @else
-                                    <a href="{{ route('superadmin.role.hapus', $p['id']) }}"
+                                    <a href="{{ route('superadmin.user.hapus', $p['id']) }}"
                                         class="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Hapus">
                                         <i class="bi bi-trash"></i>
                                     </a>

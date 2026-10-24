@@ -111,6 +111,17 @@
                 </li>
                 @endif
 
+                @if (auth()->user()->hasRole(4))
+                <li class="px-3">
+                    <a href="{{ route('perpindahan_kelas.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg menu-link
+                        {{ request()->routeIs('perpindahan_kelas.*') ? 'active-link' : 'text-gray-600 hover:bg-gray-50' }}">
+                        <i class="bi bi-arrow-left-right"></i>
+                        <span>Perpindahan Kelas</span>
+                    </a>
+                </li>
+                @endif
+
                 
 
                 <!-- ───── MANAJEMEN USER ───── -->

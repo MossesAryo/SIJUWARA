@@ -33,8 +33,10 @@ class Walikelas_Template implements WithMultipleSheets
             new class implements FromArray, WithHeadings, WithTitle, WithStyles, ShouldAutoSize {
                 public function array(): array
                 {
-                    // Sengaja kosong: baris contoh bisa ikut ter-import tanpa sengaja.
-                    return [];
+                    // Baris 3 = contoh. Nama diawali "CONTOH" supaya dilewati saat import.
+                    return [
+                        ['196501011990031001', 'CONTOH - Siti Aminah, S.Pd', '11-RPL-1', 'siti.aminah'],
+                    ];
                 }
 
                 public function headings(): array
@@ -52,12 +54,20 @@ class Walikelas_Template implements WithMultipleSheets
 
                 public function styles(Worksheet $sheet)
                 {
-                    // NIP 18 digit: paksa jadi teks agar tidak berubah jadi 1.9E+17
-                    $sheet->getStyle('A3:A5000')->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+                    // NIP 18 digit: paksa jadi teks agar tidak berubah jadi 1.9E+17.
+                    $sheet->getStyle('A3:A5000')
+                        ->getNumberFormat()
+                        ->setFormatCode(NumberFormat::FORMAT_TEXT);
 
                     return [
                         1 => ['font' => ['bold' => true, 'size' => 14]],
                         2 => ['font' => ['bold' => true]],
+                        3 => [
+                            'font' => [
+                                'italic' => true,
+                                'color' => ['rgb' => '808080'],
+                            ],
+                        ],
                     ];
                 }
             },
@@ -70,9 +80,10 @@ class Walikelas_Template implements WithMultipleSheets
                     '1. Isi sheet "Data Walikelas" mulai baris 3. Baris 1 dan 2 jangan diubah.',
                     '2. NIP wajib diisi (angka) dan tidak boleh sama dengan walikelas lain. Kolom NIP sudah berformat Teks.',
                     '3. Nama Walikelas wajib diisi.',
-                    '4. Id Kelas diisi dengan Id Kelas dari daftar di bawah (contoh: XI-RPL-1). Nama kelas seperti "XI RPL 1" juga bisa.',
+                    '4. Id Kelas diisi dengan Id Kelas dari daftar di bawah (contoh: 11-RPL-1). Nama kelas seperti "11 RPL 1" juga bisa.',
                     '5. Username boleh dikosongkan. Kalau kosong, dipakai Nama Walikelas.',
                     '6. Akun login dibuat otomatis dengan password default. NIP yang sudah ada hanya diperbarui nama dan kelasnya.',
+                    '7. Baris contoh (nama diawali CONTOH) dilewati saat import. Boleh dihapus atau ditimpa.',
                 ];
 
                 public function __construct($kelas)
@@ -110,11 +121,11 @@ class Walikelas_Template implements WithMultipleSheets
 
                 public function styles(Worksheet $sheet)
                 {
-                    // baris judul tabel = jumlah petunjuk + 1 baris kosong + 1
+                    // Baris judul tabel = jumlah petunjuk + 1 baris kosong + 1.
                     $barisHeader = count(self::PETUNJUK) + 2;
 
                     return [
-                        1            => ['font' => ['bold' => true]],
+                        1 => ['font' => ['bold' => true]],
                         $barisHeader => ['font' => ['bold' => true]],
                     ];
                 }
