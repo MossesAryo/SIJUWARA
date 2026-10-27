@@ -1,5 +1,13 @@
 @extends('layouts.wakasek.app')
 
+@push('css')
+    {{-- Font isi halaman & textbox (sama seperti halaman login). --}}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+@endpush
+
 @php
     $preview     = $preview ?? ['kelas10_ke_11' => 0, 'kelas10_direncanakan' => 0, 'kelas11_ke_12' => 0, 'kelas11_direncanakan' => 0, 'lulus' => 0, 'lulus_direncanakan' => 0];
     $tahunAktif  = $tahunAktif ?? null;
@@ -8,7 +16,7 @@
 @endphp
 
 @section('content')
-<div class="space-y-6">
+<div class="space-y-6 font-jakarta">
 
     {{-- Header --}}
     <div>
@@ -90,21 +98,27 @@
             <input type="hidden" name="siswa_nis" id="siswaNisInput" value="{{ old('siswa_nis') }}">
             {{-- Diisi 1 oleh JavaScript hanya jika pengguna sengaja mengganti tahun tanpa mencentang siswa. --}}
             <input type="hidden" name="tanpa_siswa" id="tanpaSiswaInput" value="0">
-            <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
-                <select name="tahun_ajaran_id" id="selectTahun"
-                        class="border rounded px-4 py-2 w-full md:w-1/2">
-                    @foreach ($opsiTahun as $opsi)
-                        <option value="{{ $opsi['id'] }}"
-                            data-selisih="{{ $opsi['selisih'] }}"
-                            {{ (string) $opsi['id'] === (string) $tahunDipilih ? 'selected' : '' }}>
-                            {{ $opsi['label'] }}@if ($opsi['aktif']) (aktif)@endif
-                        </option>
-                    @endforeach
-                </select>
+            <div class="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                <div class="w-full md:w-1/2">
+                    <label for="selectTahun" class="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <i class="bi bi-calendar3 text-gray-500"></i> Tahun Ajaran Tujuan
+                    </label>
+                    <select name="tahun_ajaran_id" id="selectTahun"
+                            class="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                        @foreach ($opsiTahun as $opsi)
+                            <option value="{{ $opsi['id'] }}"
+                                data-selisih="{{ $opsi['selisih'] }}"
+                                {{ (string) $opsi['id'] === (string) $tahunDipilih ? 'selected' : '' }}>
+                                {{ $opsi['label'] }}@if ($opsi['aktif']) (aktif)@endif
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
                 <button type="submit" id="btnSubmitTahun"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold">
-                    Ganti Tahun Ajaran
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200/70 transition duration-200 hover:bg-blue-700 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none">
+                    <i class="bi bi-arrow-repeat text-base"></i>
+                    <span>Ganti Tahun Ajaran</span>
                 </button>
             </div>
 
@@ -122,9 +136,9 @@
                     <p class="text-sm text-gray-500">{{ $siswaList->count() }} siswa aktif. Centang siswa yang akan diproses.</p>
                 </div>
                 <div class="relative w-full md:w-64">
-                    <i class="bi bi-search absolute left-3 top-2.5 text-gray-400"></i>
+                    <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     <input id="inputSearchTahun" type="text" placeholder="Cari Siswa..."
-                        class="pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full">
+                        class="w-full rounded-xl border-2 border-gray-200 bg-white pl-10 pr-4 py-3 text-sm font-medium text-gray-800 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                 </div>
             </div>
         </div>
@@ -137,7 +151,7 @@
                             <i class="bi bi-buildings text-gray-500"></i> Program / Kompetensi Keahlian
                         </label>
                         <select id="filterJurusanTahun"
-                                class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
+                                class="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                             <option value="">-- Semua Program / Kompetensi Keahlian --</option>
                             @foreach ($jurusanList as $jurusan)
                                 <option value="{{ $jurusan->id_jurusan }}">
@@ -153,7 +167,7 @@
                         <i class="bi bi-collection text-gray-500"></i> Kelas
                     </label>
                     <select id="filterKelasTahun"
-                            class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
+                            class="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                         <option value="">-- Semua Kelas --</option>
                         @foreach ($kelasList as $kelas)
                             <option value="{{ $kelas->id_kelas }}" data-jurusan="{{ $kelas->id_jurusan }}">
@@ -265,33 +279,30 @@
 
 {{-- Modal konfirmasi --}}
 <div id="modalKonfirmasi"
-     class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-xl w-full max-w-md shadow-lg">
-        <div class="px-5 py-4 border-b">
-            <h3 class="text-xl font-bold text-gray-700">Konfirmasi Ganti Tahun Ajaran</h3>
+     class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center p-4 z-50">
+    <div class="animate-in bg-white rounded-xl w-full max-w-md shadow-lg">
+        <div class="p-5 border-b">
+            <h3 class="font-semibold text-lg">Konfirmasi Ganti Tahun Ajaran</h3>
         </div>
-        <div class="px-5 py-4 text-sm space-y-3 max-h-[70vh] overflow-y-auto">
-            {{-- Perubahan tingkat --}}
+        <div class="p-5 text-sm space-y-3 max-h-[70vh] overflow-y-auto">
             <div>
-                <p class="font-medium text-gray-700" id="modalArah"></p>
+                <p class="text-gray-700">Perubahan tingkat kelas: <span id="modalArah"></span></p>
                 <ul id="modalPerubahan" class="mt-1 list-disc list-inside text-gray-700 space-y-0.5"></ul>
             </div>
 
-            {{-- Siswa yang diproses --}}
             <div>
-                <p class="font-medium text-gray-700">Siswa yang diproses</p>
+                <p class="text-gray-700">Siswa yang diproses</p>
                 <ul id="modalSiswa" class="mt-1 list-disc list-inside text-gray-700 space-y-0.5"></ul>
             </div>
 
-            {{-- Rencana Ketua Program --}}
             <div id="modalKaprogWrapper">
-                <p class="font-medium text-gray-700">Rencana Ketua Program</p>
+                <p class="text-gray-700">Rencana Ketua Program</p>
                 <ul id="modalKaprog" class="mt-1 list-disc list-inside text-gray-700 space-y-0.5"></ul>
             </div>
 
-            <p class="text-red-600 font-semibold">Proses ini tidak bisa dibatalkan.</p>
+            <p class="text-red-600">Proses ini tidak bisa dibatalkan.</p>
         </div>
-        <div class="px-5 py-4 border-t flex justify-end gap-2">
+        <div class="p-5 border-t flex justify-end gap-2">
             <button type="button" id="btnBatal"
                     class="border px-4 py-2 rounded hover:bg-gray-50">
                 Batal
@@ -600,14 +611,12 @@
         tanpaSiswaInput.value = daftar.length === 0 ? '1' : '0';
 
         if (daftar.length > 0) {
-            modalSiswa.className = 'mt-1 list-disc list-inside text-gray-700 space-y-0.5';
             isiDaftar(modalSiswa, [
                 `${daftar.length} siswa dicentang`,
                 `Kelas 11: ${perTingkat['11']} siswa`,
                 `Kelas 12: ${perTingkat['12']} siswa`,
             ]);
         } else {
-            modalSiswa.className = 'mt-1 list-disc list-inside text-gray-700 space-y-0.5';
             isiDaftar(modalSiswa, selisih > 0
                 ? [
                     'Peringatan: tidak ada siswa kelas 11 dicentang',

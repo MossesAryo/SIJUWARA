@@ -114,4 +114,15 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Font isi textbox (Plus Jakarta Sans, dimuat lewat @push('css') di halaman terkait).
+   Sengaja HANYA untuk isi textbox (input/select/textarea), bukan teks lain di halaman. */
+.font-jakarta input,
+.font-jakarta select,
+.font-jakarta textarea,
+.font-jakarta select option {
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
 
