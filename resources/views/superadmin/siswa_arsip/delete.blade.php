@@ -7,7 +7,7 @@
 
     <div class="mb-5">
         <a href="{{ route('superadmin.siswa-arsip.index') }}" class="text-sm text-gray-500 hover:text-gray-800">
-            <i class="bi bi-arrow-left"></i> Kembali ke Tong Sampah Siswa
+            <i class="bi bi-arrow-left"></i> Kembali ke Arsip Siswa
         </a>
         <h2 class="mt-2 text-lg font-bold text-gray-900">Hapus Permanen Siswa</h2>
         <p class="text-sm text-gray-400">Periksa data berikut sebelum menghapus. Tindakan ini tidak dapat dibatalkan.</p>

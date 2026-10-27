@@ -4,7 +4,7 @@
         ['label' => 'Manajemen User',    'icon' => 'bi-people',        'route' => 'superadmin.user.index',        'active' => 'superadmin.user.*'],
         ['label' => 'Manajemen Keahlian', 'icon' => 'bi-mortarboard',   'route' => 'superadmin.jurusan.index',     'active' => 'superadmin.jurusan.*'],
         ['label' => 'Pemantauan Role',   'icon' => 'bi-activity',      'route' => 'superadmin.pemantauan.index',  'active' => 'superadmin.pemantauan.*'],
-        ['label' => 'Tong Sampah Siswa', 'icon' => 'bi-archive',       'route' => 'superadmin.siswa-arsip.index', 'active' => 'superadmin.siswa-arsip.*'],
+        ['label' => 'Arsip Siswa', 'icon' => 'bi-archive',       'route' => 'superadmin.siswa-arsip.index', 'active' => 'superadmin.siswa-arsip.*'],
         ['label' => 'Log Aktivitas',     'icon' => 'bi-clock-history', 'route' => 'superadmin.log.index',         'active' => 'superadmin.log.*'],
     ];
 @endphp
