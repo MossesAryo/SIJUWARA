@@ -74,7 +74,7 @@ class SiswaArsipController extends Controller
         if (! $siswa) {
             return redirect()
                 ->route('superadmin.siswa-arsip.index')
-                ->with('error', 'Siswa tidak ditemukan di tong sampah.');
+                ->with('error', 'Siswa tidak ditemukan di arsip siswa.');
         }
 
         try {
@@ -93,7 +93,7 @@ class SiswaArsipController extends Controller
         ActivityLog::catat(
             ActivityLog::KATEGORI_SISWA,
             'Pulihkan Siswa',
-            "Siswa {$siswa->nama_siswa} (NIS {$siswa->nis}) dipulihkan dari tong sampah.",
+            "Siswa {$siswa->nama_siswa} (NIS {$siswa->nis}) dipulihkan dari arsip siswa.",
             $siswa->nis
         );
 
@@ -118,7 +118,7 @@ class SiswaArsipController extends Controller
         if (! $siswa) {
             return redirect()
                 ->route('superadmin.siswa-arsip.index')
-                ->with('error', 'Siswa tidak ditemukan di tong sampah.');
+                ->with('error', 'Siswa tidak ditemukan di arsip siswa.');
         }
 
         return view('superadmin.siswa_arsip.delete', [
@@ -140,7 +140,7 @@ class SiswaArsipController extends Controller
         if (! $siswa) {
             return redirect()
                 ->route('superadmin.siswa-arsip.index')
-                ->with('error', 'Siswa tidak ditemukan di tong sampah.');
+                ->with('error', 'Siswa tidak ditemukan di arsip siswa.');
         }
 
         $request->validate(

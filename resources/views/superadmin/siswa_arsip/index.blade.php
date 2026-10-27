@@ -1,6 +1,6 @@
 @extends('layouts.superadmin.app')
 
-@section('title', 'Tong Sampah Siswa - Super Admin')
+@section('title', 'Arsip Siswa - Super Admin')
 
 @section('content')
     @php
@@ -13,11 +13,11 @@
 
     <div class="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-            <h2 class="text-lg font-bold text-gray-900">Tong Sampah Siswa</h2>
+            <h2 class="text-lg font-bold text-gray-900">Arsip Siswa</h2>
             <p class="text-sm text-gray-400">Siswa yang diarsipkan. Dapat dipulihkan atau dihapus permanen oleh Super Admin.</p>
         </div>
         <span class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600">
-            <i class="bi bi-archive"></i> {{ number_format($totalArsip) }} siswa di tong sampah
+            <i class="bi bi-archive"></i> {{ number_format($totalArsip) }} siswa diarsipkan
         </span>
     </div>
 
@@ -104,7 +104,7 @@
                     @empty
                         <tr>
                             <td colspan="8" class="px-4 py-10 text-center text-gray-400">
-                                {{ ($q !== '' || $idKelas !== '') ? 'Tidak ada siswa yang cocok dengan pencarian.' : 'Tong sampah kosong.' }}
+                                {{ ($q !== '' || $idKelas !== '') ? 'Tidak ada siswa yang cocok dengan pencarian.' : 'Arsip siswa masih kosong.' }}
                             </td>
                         </tr>
                     @endforelse
