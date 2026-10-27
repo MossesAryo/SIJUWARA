@@ -6,9 +6,11 @@
     $tujuanAcakOld = (array) old('kelas_tujuan_acak', []);
     $totalSiswa    = $siswaList->count();
     $totalRencana  = count($rencanaMap);
-    $bisaProses    = $totalSiswa > 0 && $kelasTujuan->isNotEmpty();
     $asal          = $transisi['asal'];
     $tujuan        = $transisi['tujuan'];
+    $untukAlumni   = $tujuan === 'alumni';
+    $labelTujuan   = $untukAlumni ? 'Alumni' : $tujuan;
+    $bisaProses    = $totalSiswa > 0 && ($untukAlumni || $kelasTujuan->isNotEmpty());
 @endphp
 
 @section('content')
@@ -16,13 +18,21 @@
 
     {{-- Header --}}
     <div>
-        <h1 class="text-2xl font-bold">Perpindahan Kelas {{ $asal }} → {{ $tujuan }}</h1>
+        <h1 class="text-2xl font-bold">Perpindahan Kelas {{ $asal }} → {{ $labelTujuan }}</h1>
         <p class="text-gray-500">
-            Rencanakan penempatan siswa kelas {{ $asal }} ke kelas {{ $tujuan }}
+            @if ($untukAlumni)
+                Tandai siswa kelas 12
+            @else
+                Rencanakan penempatan siswa kelas {{ $asal }} ke kelas {{ $tujuan }}
+            @endif
             @if ($jurusan)
                 program {{ $jurusan->nama_jurusan }}
             @endif
-            . Siswa dari berbagai rombel boleh dicampur.
+            @if ($untukAlumni)
+                yang akan lulus menjadi alumni.
+            @else
+                . Siswa dari berbagai rombel boleh dicampur.
+            @endif
         </p>
     </div>
 
@@ -32,7 +42,7 @@
             <a href="{{ route('perpindahan_kelas.index', ['transisi' => $kunci]) }}"
                class="px-4 py-2 rounded-lg border text-sm font-semibold
                       {{ $kunci === $transisi['kunci'] ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50' }}">
-                Kelas {{ $t['asal'] }} → {{ $t['tujuan'] }}
+                Kelas {{ $t['asal'] }} → {{ $t['tujuan'] === 'alumni' ? 'Alumni' : $t['tujuan'] }}
             </a>
         @endforeach
     </div>
@@ -64,8 +74,14 @@
     <div class="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm flex gap-2">
         <i class="bi bi-info-circle-fill mt-0.5"></i>
         <p>
-            Yang Anda simpan di sini hanya <b>rencana</b>. Siswa tetap di kelas {{ $asal }} dan baru pindah ke kelas {{ $tujuan }}
-            saat Wakasek mengganti tahun ajaran. Selama belum diganti, rencana boleh diubah atau dibatalkan.
+            @if ($untukAlumni)
+                Yang Anda simpan di sini hanya <b>rencana kelulusan</b>. Siswa tetap di kelas 12 dan baru menjadi alumni
+                saat Wakasek mengganti tahun ajaran. Siswa kelas 12 yang tidak ditandai tetap di kelas 12.
+                Selama belum diganti, rencana boleh dibatalkan.
+            @else
+                Yang Anda simpan di sini hanya <b>rencana</b>. Siswa tetap di kelas {{ $asal }} dan baru pindah ke kelas {{ $tujuan }}
+                saat Wakasek mengganti tahun ajaran. Selama belum diganti, rencana boleh diubah atau dibatalkan.
+            @endif
             @if ($asal === '11')
                 Untuk kelas 11 → 12, rencana ini hanya menentukan <b>kelas tujuan</b>; siswa yang benar-benar naik
                 tetap dicentang oleh Wakasek. Siswa kelas 11 tanpa rencana masuk ke kelas pasangannya (mis. 11 RPL 1 → 12 RPL 1).
@@ -82,19 +98,25 @@
         <div class="bg-emerald-50 border rounded-lg p-4">
             <p class="text-sm text-gray-600">Sudah direncanakan</p>
             <p class="text-3xl font-bold text-emerald-700">{{ $totalRencana }}</p>
-            <p class="text-xs text-gray-500 mt-1">{{ $totalSiswa - $totalRencana }} belum ditempatkan</p>
+            <p class="text-xs text-gray-500 mt-1">{{ $totalSiswa - $totalRencana }} {{ $untukAlumni ? 'belum ditandai lulus' : 'belum ditempatkan' }}</p>
         </div>
         <div class="bg-blue-50 border rounded-lg p-4">
             <p class="text-sm text-gray-600">Siswa dipilih</p>
             <p class="text-3xl font-bold text-blue-700" id="jumlahDipilih">0</p>
         </div>
         <div class="bg-green-50 border rounded-lg p-4">
-            <p class="text-sm text-gray-600">Kelas {{ $tujuan }} tujuan</p>
-            <p class="text-3xl font-bold text-green-700">{{ $kelasTujuan->count() }}</p>
+            @if ($untukAlumni)
+                <p class="text-sm text-gray-600">Tujuan</p>
+                <p class="text-3xl font-bold text-green-700">Alumni</p>
+            @else
+                <p class="text-sm text-gray-600">Kelas {{ $tujuan }} tujuan</p>
+                <p class="text-3xl font-bold text-green-700">{{ $kelasTujuan->count() }}</p>
+            @endif
         </div>
     </div>
 
-    {{-- Isi kelas 11 --}}
+    {{-- Isi kelas tujuan (tidak ada untuk Alumni) --}}
+    @unless ($untukAlumni)
     <div class="bg-white border rounded-xl p-6">
         <h3 class="font-semibold text-lg mb-1">Kelas {{ $tujuan }} Program Anda</h3>
         <p class="text-sm text-gray-500 mb-4">
@@ -126,12 +148,17 @@
             </div>
         @endif
     </div>
+    @endunless
 
     {{-- Form --}}
     <div class="bg-white border rounded-xl p-6">
-        <h3 class="font-semibold mb-1 text-lg">Rencanakan Penempatan</h3>
+        <h3 class="font-semibold mb-1 text-lg">{{ $untukAlumni ? 'Rencanakan Kelulusan' : 'Rencanakan Penempatan' }}</h3>
         <p class="text-sm text-gray-500 mb-4">
-            Centang siswa pada tabel di bawah, pilih cara penempatan, lalu simpan rencana.
+            @if ($untukAlumni)
+                Centang siswa kelas 12 yang akan lulus pada tabel di bawah, lalu simpan rencana.
+            @else
+                Centang siswa pada tabel di bawah, pilih cara penempatan, lalu simpan rencana.
+            @endif
         </p>
 
         <form method="POST" action="{{ route('perpindahan_kelas.simpan') }}" id="formPerpindahan"
@@ -141,6 +168,7 @@
             <input type="hidden" name="transisi" value="{{ $transisi['kunci'] }}">
             <input type="hidden" name="siswa_nis" id="siswaNisInput" value="{{ old('siswa_nis') }}">
 
+            @unless ($untukAlumni)
             <div class="grid md:grid-cols-2 gap-3 mb-4">
                 <label class="flex items-start gap-3 border rounded-lg p-3 cursor-pointer hover:bg-gray-50">
                     <input type="radio" name="mode" value="manual" class="mt-1"
@@ -196,17 +224,18 @@
                     @endforeach
                 </div>
             </div>
+            @endunless
 
             <div class="mt-5 flex flex-col md:flex-row md:items-center gap-3">
                 <button type="submit" id="btnSubmit"
                     class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     {{ $bisaProses ? '' : 'disabled' }}>
-                    Simpan Rencana
+                    {{ $untukAlumni ? 'Simpan Rencana Lulus' : 'Simpan Rencana' }}
                 </button>
                 <button type="button" id="btnBatalRencana"
                     class="border border-red-300 text-red-700 hover:bg-red-50 px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     {{ $totalRencana > 0 ? '' : 'disabled' }}>
-                    Batalkan Rencana Siswa Terpilih
+                    {{ $untukAlumni ? 'Batalkan Rencana Lulus Siswa Terpilih' : 'Batalkan Rencana Siswa Terpilih' }}
                 </button>
                 <p id="infoDipilih" class="text-sm text-gray-600"></p>
             </div>
@@ -219,7 +248,7 @@
             <div class="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-900">Siswa Kelas {{ $asal }}</h3>
-                    <p class="text-sm text-gray-500">{{ $totalSiswa }} siswa aktif. Centang siswa yang akan direncanakan.</p>
+                    <p class="text-sm text-gray-500">{{ $totalSiswa }} siswa aktif. Centang siswa yang akan {{ $untukAlumni ? 'lulus' : 'direncanakan' }}.</p>
                 </div>
                 <div class="relative w-full md:w-64">
                     <i class="bi bi-search absolute left-3 top-2.5 text-gray-400"></i>
@@ -250,7 +279,7 @@
                     <select id="filterStatusRencana"
                         class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
                         <option value="">-- Semua --</option>
-                        <option value="belum">Belum ditempatkan</option>
+                        <option value="belum">{{ $untukAlumni ? 'Belum ditandai lulus' : 'Belum ditempatkan' }}</option>
                         <option value="sudah">Sudah direncanakan</option>
                     </select>
                 </div>
@@ -265,7 +294,7 @@
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">NIS</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nama Siswa</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Kelas Asal</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Rencana Kelas {{ $tujuan }}</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{{ $untukAlumni ? 'Rencana Kelulusan' : 'Rencana Kelas ' . $tujuan }}</th>
                         <th class="px-5 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             <div class="flex items-center gap-2">
                                 <input type="checkbox" id="checkSemuaSiswa" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
@@ -304,7 +333,7 @@
                                     </span>
                                 @else
                                     <span class="text-xs text-gray-500 bg-gray-100 border border-gray-200 rounded px-2 py-1">
-                                        Belum ditempatkan
+                                        {{ $untukAlumni ? 'Belum ditandai lulus' : 'Belum ditempatkan' }}
                                     </span>
                                 @endif
                             </td>
@@ -346,8 +375,12 @@
         <div class="p-5 text-sm space-y-2">
             <p id="modalDesc" class="text-gray-700"></p>
             <p class="text-gray-500">
-                Siswa belum pindah. Mereka baru masuk ke kelas {{ $tujuan }} saat Wakasek mengganti tahun ajaran.
-                Rencana siswa yang sama akan diganti.
+                @if ($untukAlumni)
+                    Siswa belum lulus. Mereka baru menjadi alumni saat Wakasek mengganti tahun ajaran.
+                @else
+                    Siswa belum pindah. Mereka baru masuk ke kelas {{ $tujuan }} saat Wakasek mengganti tahun ajaran.
+                    Rencana siswa yang sama akan diganti.
+                @endif
             </p>
         </div>
         <div class="p-5 border-t flex justify-end gap-2">
@@ -367,6 +400,8 @@
 @push('js')
 <script>
 (function () {
+    const UNTUK_ALUMNI  = {{ $untukAlumni ? 'true' : 'false' }};
+
     const form          = document.getElementById('formPerpindahan');
     const nisInput      = document.getElementById('siswaNisInput');
     const infoDipilih   = document.getElementById('infoDipilih');
@@ -400,8 +435,8 @@
 
     function toggleMode() {
         const mode = modeAktif();
-        panelManual.classList.toggle('hidden', mode !== 'manual');
-        panelAcak.classList.toggle('hidden', mode !== 'acak');
+        panelManual?.classList.toggle('hidden', mode !== 'manual');
+        panelAcak?.classList.toggle('hidden', mode !== 'acak');
     }
 
     /* ---------- Pemilihan siswa ---------- */
@@ -506,7 +541,9 @@
             return;
         }
 
-        if (modeAktif() === 'manual') {
+        if (UNTUK_ALUMNI) {
+            modalDesc.textContent = `${daftar.length} siswa kelas 12 akan direncanakan lulus menjadi alumni.`;
+        } else if (modeAktif() === 'manual') {
             if (!selectTujuan || !selectTujuan.value) {
                 alert('Pilih kelas {{ $tujuan }} tujuan terlebih dahulu.');
                 return;

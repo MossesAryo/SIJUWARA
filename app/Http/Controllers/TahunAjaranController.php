@@ -32,7 +32,9 @@ use Throwable;
  *   (PerpindahanKelasController, 11 -> 12), siswa yang DICENTANG masuk ke kelas rencana itu;
  *   jika belum ada rencana, dipakai kelas pasangan ("11-RPL-1" -> "12-RPL-1"). Siswa kelas 11
  *   yang tidak dicentang tetap di kelasnya dan rencananya dibuang.
- * - Kelas 12 yang naik -> id_kelas "ALUMNI" + status "alumni".
+ * - Kelas 12 yang naik -> id_kelas "ALUMNI" + status "alumni". Seperti kelas 10, ini TIDAK dicentang
+ *   manual: siswa kelas 12 yang sudah ditandai lulus oleh Ketua Program (rencana 12 -> Alumni)
+ *   diluluskan otomatis saat tahun ajaran naik 1 tahun. Yang belum ditandai tetap di kelas 12.
  * - Turun kelas tidak pernah menghidupkan kembali alumni dan tidak turun di bawah 10.
  * - Jika daftar siswa kelas 11/12 yang dikirim KOSONG padahal ada siswa aktif di kelas 11/12,
  *   proses dibatalkan (kecuali pengguna sengaja mengonfirmasi lewat tanpa_siswa=1), supaya
@@ -46,6 +48,8 @@ class TahunAjaranController extends Controller
     // Rencana Ketua Program 11 -> 12: hanya menentukan KELAS TUJUAN, siapa yang naik tetap dipilih lewat centang.
     private const TINGKAT_ASAL_RENCANA_12   = '11';
     private const TINGKAT_TUJUAN_RENCANA_12 = '12';
+    // Rencana Ketua Program 12 -> Alumni: menandai siswa kelas 12 yang lulus.
+    private const TINGKAT_DILULUSKAN_KAPROG = '12';
     private const ID_ALUMNI = 'ALUMNI';
     private const CHUNK = 500;
 
@@ -74,13 +78,14 @@ class TahunAjaranController extends Controller
             ->orderBy('nama_siswa')
             ->get();
 
-        // Rencana penempatan kelas 10 -> 11 dan 11 -> 12 dari Ketua Program, kunci = NIS.
+        // Rencana penempatan kelas 10 -> 11, 11 -> 12 dan 12 -> Alumni dari Ketua Program, kunci = NIS.
         $rencanaMap = RencanaPindahKelas::with('kelasTujuan')
             ->get()
             ->keyBy(fn ($r) => (string) $r->nis);
 
         $siswaKelas10 = $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === '10');
         $siswaKelas11 = $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === '11');
+        $siswaKelas12 = $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === '12');
 
         $preview = [
             // Kelas 10 -> 11 diatur Ketua Program: total siswa kelas 10 dan yang sudah direncanakan.
@@ -88,7 +93,10 @@ class TahunAjaranController extends Controller
             'kelas10_direncanakan' => $siswaKelas10->filter(fn ($s) => $rencanaMap->has((string) $s->nis))->count(),
             'kelas11_ke_12'        => $siswaKelas11->count(),
             'kelas11_direncanakan' => $siswaKelas11->filter(fn ($s) => $rencanaMap->has((string) $s->nis))->count(),
-            'lulus'                => $siswaList->filter(fn ($s) => $this->tingkatDariId($s->id_kelas) === '12')->count(),
+            'lulus'                => $siswaKelas12->count(),
+            'lulus_direncanakan'   => $siswaKelas12->filter(
+                fn ($s) => ($rencanaMap[(string) $s->nis]->id_kelas_tujuan ?? null) === self::ID_ALUMNI
+            )->count(),
         ];
 
         $kelasList   = kelas::with('jurusan')
@@ -174,7 +182,10 @@ class TahunAjaranController extends Controller
             // daftar centang tidak terkirim dari browser (bukan pilihan sengaja). Tanpa pengaman ini,
             // hanya kelas 10 (rencana Ketua Program) yang pindah dan kelas 11/12 diam-diam tertinggal.
             // Pilihan sengaja "tanpa menaikkan siswa" dikirim form lewat tanpa_siswa=1 (dari modal konfirmasi).
-            $tingkatDiproses = $this->hitungSiswaKelas11dan12();
+            // Saat naik, kelas 12 mengikuti rencana Ketua Program (tidak dicentang), jadi hanya kelas 11 yang dihitung.
+            $tingkatDiproses = $this->hitungSiswaKelas11dan12($selisih > 0);
+
+            $labelTingkat = $selisih > 0 ? 'kelas 11' : 'kelas 11 / 12';
 
             if ($selisih !== 0 && empty($nisDipilih) && !$request->boolean('tanpa_siswa') && $tingkatDiproses > 0) {
                 Log::warning('Ganti tahun ajaran dibatalkan: daftar siswa kosong', [
@@ -185,20 +196,20 @@ class TahunAjaranController extends Controller
                 ]);
 
                 throw new RuntimeException(
-                    "Tidak ada daftar siswa kelas 11 / 12 yang diterima server, padahal ada {$tingkatDiproses} siswa aktif di kelas 11 / 12. "
+                    "Tidak ada daftar siswa {$labelTingkat} yang diterima server, padahal ada {$tingkatDiproses} siswa aktif di {$labelTingkat}. "
                     . 'Tahun ajaran BELUM diganti dan tidak ada data yang berubah. '
                     . 'Muat ulang halaman (Ctrl+F5), centang siswa, lalu klik Ganti Tahun Ajaran dan konfirmasi di jendela yang muncul.'
                 );
             }
 
             // Siswa kelas 11/12 aktif yang tidak dicentang akan tetap di kelasnya.
-            $tidakDicentang = max(0, $tingkatDiproses - $this->hitungDicentangAktif($nisDipilih));
+            $tidakDicentang = max(0, $tingkatDiproses - $this->hitungDicentangAktif($nisDipilih, $selisih > 0));
 
             $hasil = DB::transaction(function () use ($selisih, $nisDipilih, $tahunBaru) {
                 // 1) Kelas 11 -> 12 dan 12 -> Alumni (atau turun kelas) untuk siswa yang dicentang.
                 $hasil = $this->pindahkanKelas($nisDipilih, $selisih);
 
-                // 2) Naik tepat 1 tahun: terapkan rencana Ketua Program (10 -> 11).
+                // 2) Naik tepat 1 tahun: terapkan rencana Ketua Program (10 -> 11 dan 12 -> Alumni).
                 //    Dilakukan setelah langkah 1 supaya tidak tercampur dengan siswa kelas 11 lama.
                 if ($selisih === 1) {
                     $hasil = array_merge($hasil, $this->terapkanRencanaKaprog());
@@ -212,6 +223,8 @@ class TahunAjaranController extends Controller
 
             // Siswa kelas 10 yang masih tinggal (belum direncanakan Ketua Program).
             $menungguKaprog = $selisih > 0 ? $this->hitungSisaKelas10() : 0;
+            // Siswa kelas 12 yang belum ditandai lulus oleh Ketua Program, jadi tetap di kelas 12.
+            $hasil['sisa_kelas12'] = $selisih > 0 ? $this->hitungSisaKelas12() : 0;
 
             // Naik lebih dari 1 tahun: rencana tidak diterapkan, tetap tersimpan.
             $rencanaDitahan = $selisih > 1 ? RencanaPindahKelas::query()->count() : 0;
@@ -244,11 +257,11 @@ class TahunAjaranController extends Controller
     /**
      * Pindahkan kelas siswa terpilih sejauh $selisih tingkat.
      * $selisih > 0 = naik, $selisih < 0 = turun.
-     * Siswa kelas 10 yang NAIK dilewati: penempatannya mengikuti rencana Ketua Program.
+     * Siswa kelas 10 yang NAIK dan siswa kelas 12 yang NAIK (lulus) dilewati: keduanya mengikuti rencana Ketua Program.
      * Wajib dipanggil di dalam DB::transaction.
      *
      * @param  array<int,string>  $nisList
-     * @return array{naik:int, turun:int, lulus:int, tetap:int, dilewati:int, diserahkan:int, ditempatkan:int, rencana_basi:int, ditempatkan12:int, rencana12_basi:int, rencana12_dibuang:int}
+     * @return array{naik:int, turun:int, lulus:int, tetap:int, dilewati:int, diserahkan:int, ditempatkan:int, rencana_basi:int, ditempatkan12:int, rencana12_basi:int, rencana12_dibuang:int, diluluskan:int, sisa_kelas12:int}
      */
     private function pindahkanKelas(array $nisList, int $selisih): array
     {
@@ -256,6 +269,7 @@ class TahunAjaranController extends Controller
             'naik' => 0, 'turun' => 0, 'lulus' => 0, 'tetap' => 0,
             'dilewati' => 0, 'diserahkan' => 0, 'ditempatkan' => 0, 'rencana_basi' => 0,
             'ditempatkan12' => 0, 'rencana12_basi' => 0, 'rencana12_dibuang' => 0,
+            'diluluskan' => 0, 'sisa_kelas12' => 0,
         ];
 
         if (empty($nisList) || $selisih === 0) {
@@ -299,6 +313,12 @@ class TahunAjaranController extends Controller
 
             // Kelas 10 naik ke 11 mengikuti rencana Ketua Program, bukan dihitung di sini.
             if ($selisih > 0 && $tingkat === self::TINGKAT_DIATUR_KAPROG) {
+                $hasil['diserahkan']++;
+                continue;
+            }
+
+            // Kelas 12 lulus mengikuti rencana Ketua Program (12 -> Alumni), bukan dihitung di sini.
+            if ($selisih > 0 && $tingkat === self::TINGKAT_DILULUSKAN_KAPROG) {
                 $hasil['diserahkan']++;
                 continue;
             }
@@ -375,8 +395,9 @@ class TahunAjaranController extends Controller
             $hasil[$jenis]++;
         }
 
-        // Rencana kelas 11 -> 12 yang sudah dipakai tidak diperlukan lagi.
-        foreach (array_chunk($denganRencana, self::CHUNK) as $potongan) {
+        // Siswa yang kelasnya baru berubah tidak boleh meninggalkan rencana lama (rencana yang dipakai
+        // maupun yang tidak valid), supaya tidak diterapkan salah di langkah berikutnya.
+        foreach (array_chunk(array_map('strval', array_keys($jenisPerNis)), self::CHUNK) as $potongan) {
             RencanaPindahKelas::query()->whereIn('nis', $potongan)->delete();
         }
 
@@ -444,15 +465,16 @@ class TahunAjaranController extends Controller
      *
      * Rencana dianggap basi (dibuang tanpa memindahkan siswa) bila siswanya sudah tidak aktif
      * di kelas 10, kelas tujuannya bukan kelas 11, atau kelas tujuannya sudah tidak ada.
+     * Rencana 12 -> Alumni yang valid (siswa masih aktif di kelas 12) langsung meluluskan siswanya.
      * Rencana 11 -> 12 yang masih tersisa di sini adalah milik siswa kelas 11 yang tidak dicentang
      * naik kelas (yang dicentang sudah dipakai di pindahkanKelas); rencananya dibuang.
      * Wajib dipanggil di dalam DB::transaction.
      *
-     * @return array{ditempatkan:int, rencana_basi:int, rencana12_dibuang:int}
+     * @return array{ditempatkan:int, rencana_basi:int, rencana12_dibuang:int, diluluskan:int}
      */
     private function terapkanRencanaKaprog(): array
     {
-        $hasil = ['ditempatkan' => 0, 'rencana_basi' => 0, 'rencana12_dibuang' => 0];
+        $hasil = ['ditempatkan' => 0, 'rencana_basi' => 0, 'rencana12_dibuang' => 0, 'diluluskan' => 0];
 
         $semuaRencana = RencanaPindahKelas::query()
             ->lockForUpdate()
@@ -484,10 +506,21 @@ class TahunAjaranController extends Controller
             ->all();
 
         $perTujuan = [];
+        $lulus     = [];
 
         foreach ($semuaRencana as $r) {
             $nis  = (string) $r->nis;
             $asal = $kelasSiswa[$nis] ?? null;
+
+            // Rencana 12 -> Alumni: sah bila siswa masih aktif di kelas 12.
+            if ($r->id_kelas_tujuan === self::ID_ALUMNI) {
+                if ($asal !== null && kelas::tingkatDariId($asal) === self::TINGKAT_DILULUSKAN_KAPROG) {
+                    $lulus[] = $nis;
+                } else {
+                    $hasil['rencana_basi']++;
+                }
+                continue;
+            }
 
             // Sisa rencana 11 -> 12: siswanya masih di kelas 11 (tidak dicentang), jadi tidak naik.
             if ($asal !== null
@@ -523,6 +556,16 @@ class TahunAjaranController extends Controller
             $hasil['ditempatkan'] += count($daftarNis);
         }
 
+        foreach (array_chunk($lulus, self::CHUNK) as $potongan) {
+            siswa::query()
+                ->where('status', 'aktif')
+                ->where('id_kelas', 'like', self::TINGKAT_DILULUSKAN_KAPROG . '-%')
+                ->whereIn('nis', $potongan)
+                ->update(['id_kelas' => self::ID_ALUMNI, 'status' => 'alumni']);
+        }
+
+        $hasil['diluluskan'] = count($lulus);
+
         // Semua rencana sudah diproses (diterapkan atau dibuang), hapus.
         foreach (array_chunk($nisSemua, self::CHUNK) as $potongan) {
             RencanaPindahKelas::query()->whereIn('nis', $potongan)->delete();
@@ -543,34 +586,52 @@ class TahunAjaranController extends Controller
     }
 
     /**
-     * Jumlah siswa aktif di kelas 11 dan 12 (yang dipilih manual di halaman ini).
+     * Jumlah siswa aktif yang dipilih manual di halaman ini: kelas 11 dan 12, atau hanya kelas 11
+     * bila $hanyaKelas11 (saat naik, kelas 12 mengikuti rencana Ketua Program).
      */
-    private function hitungSiswaKelas11dan12(): int
+    private function hitungSiswaKelas11dan12(bool $hanyaKelas11 = false): int
     {
         return siswa::query()
             ->where('status', 'aktif')
-            ->where(function ($q) {
-                $q->where('id_kelas', 'like', '11-%')
-                  ->orWhere('id_kelas', 'like', '12-%');
+            ->where(function ($q) use ($hanyaKelas11) {
+                $q->where('id_kelas', 'like', '11-%');
+
+                if (!$hanyaKelas11) {
+                    $q->orWhere('id_kelas', 'like', '12-%');
+                }
             })
             ->count();
     }
 
     /**
-     * Berapa dari NIS yang dikirim benar-benar siswa aktif kelas 11/12.
+     * Jumlah siswa aktif yang masih di kelas 12 (belum ditandai lulus oleh Ketua Program).
+     */
+    private function hitungSisaKelas12(): int
+    {
+        return siswa::query()
+            ->where('status', 'aktif')
+            ->where('id_kelas', 'like', self::TINGKAT_DILULUSKAN_KAPROG . '-%')
+            ->count();
+    }
+
+    /**
+     * Berapa dari NIS yang dikirim benar-benar siswa aktif kelas 11/12 (atau hanya kelas 11 bila $hanyaKelas11).
      *
      * @param  array<int,string>  $nisList
      */
-    private function hitungDicentangAktif(array $nisList): int
+    private function hitungDicentangAktif(array $nisList, bool $hanyaKelas11 = false): int
     {
         $jumlah = 0;
 
         foreach (array_chunk($nisList, self::CHUNK) as $potongan) {
             $jumlah += siswa::query()
                 ->where('status', 'aktif')
-                ->where(function ($q) {
-                    $q->where('id_kelas', 'like', '11-%')
-                      ->orWhere('id_kelas', 'like', '12-%');
+                ->where(function ($q) use ($hanyaKelas11) {
+                    $q->where('id_kelas', 'like', '11-%');
+
+                    if (!$hanyaKelas11) {
+                        $q->orWhere('id_kelas', 'like', '12-%');
+                    }
                 })
                 ->whereIn('nis', $potongan)
                 ->count();
@@ -635,6 +696,7 @@ class TahunAjaranController extends Controller
         if ($hasil['turun'] > 0)       $bagian[] = "{$hasil['turun']} siswa turun kelas";
         if ($hasil['lulus'] > 0)       $bagian[] = "{$hasil['lulus']} siswa lulus menjadi alumni";
         if ($hasil['ditempatkan'] > 0) $bagian[] = "{$hasil['ditempatkan']} siswa kelas 10 ditempatkan ke kelas 11 sesuai rencana Ketua Program";
+        if ($hasil['diluluskan'] > 0)  $bagian[] = "{$hasil['diluluskan']} siswa kelas 12 diluluskan menjadi alumni sesuai rencana Ketua Program";
         if ($hasil['ditempatkan12'] > 0) $bagian[] = "{$hasil['ditempatkan12']} siswa kelas 11 ditempatkan ke kelas 12 sesuai rencana Ketua Program";
         if ($hasil['tetap'] > 0)       $bagian[] = "{$hasil['tetap']} siswa tetap di kelas 10";
         if ($hasil['dilewati'] > 0)    $bagian[] = "{$hasil['dilewati']} siswa dilewati (kelas tidak dikenali)";
@@ -665,6 +727,10 @@ class TahunAjaranController extends Controller
 
         if ($rencanaDitahan > 0) {
             $teks .= " {$rencanaDitahan} rencana Ketua Program tidak diterapkan karena tahun ajaran naik lebih dari 1 tahun.";
+        }
+
+        if ($hasil['sisa_kelas12'] > 0) {
+            $teks .= " {$hasil['sisa_kelas12']} siswa kelas 12 belum ditandai lulus oleh Ketua Program dan masih di kelas 12.";
         }
 
         if ($menungguKaprog > 0) {

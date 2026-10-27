@@ -1,7 +1,7 @@
 @extends('layouts.wakasek.app')
 
 @php
-    $preview     = $preview ?? ['kelas10_ke_11' => 0, 'kelas10_direncanakan' => 0, 'kelas11_ke_12' => 0, 'kelas11_direncanakan' => 0, 'lulus' => 0];
+    $preview     = $preview ?? ['kelas10_ke_11' => 0, 'kelas10_direncanakan' => 0, 'kelas11_ke_12' => 0, 'kelas11_direncanakan' => 0, 'lulus' => 0, 'lulus_direncanakan' => 0];
     $tahunAktif  = $tahunAktif ?? null;
     $rencanaMap  = $rencanaMap ?? collect();
     $tahunDipilih = old('tahun_ajaran_id', $tahunAktif?->id);
@@ -46,9 +46,10 @@
         <p>
             Penempatan siswa kelas 10 ke kelas 11 direncanakan oleh Ketua Program (siswa dicampur antar rombel).
             Saat tahun ajaran naik 1 tahun, rencana itu diterapkan otomatis. Siswa kelas 10 yang belum
-            direncanakan tetap di kelas 10. Kelas 11 → 12 dan kelas 12 → Alumni tetap dipilih (dicentang) di sini;
+            direncanakan tetap di kelas 10. Kelas 11 → 12 tetap dipilih (dicentang) di sini;
             untuk kelas 11, jika Ketua Program sudah membuat rencana, siswa yang dicentang masuk ke kelas rencana tersebut,
-            jika belum mereka masuk ke kelas pasangannya.
+            jika belum mereka masuk ke kelas pasangannya. Kelas 12 → Alumni juga direncanakan Ketua Program
+            (siswa kelas 12 yang ditandai lulus diluluskan otomatis, yang belum ditandai tetap di kelas 12).
         </p>
     </div>
 
@@ -68,7 +69,10 @@
         </div>
         <div class="bg-green-50 border rounded-lg p-4">
             <p class="text-sm text-gray-600">Siswa kelas 12 → Alumni</p>
-            <p class="text-3xl font-bold text-green-700">{{ $preview['lulus'] }}</p>
+            <p class="text-3xl font-bold text-green-700">
+                {{ $preview['lulus_direncanakan'] }}<span class="text-lg text-gray-500"> / {{ $preview['lulus'] }}</span>
+            </p>
+            <p class="text-xs text-gray-500 mt-1">siswa kelas 12 sudah ditandai lulus Ketua Program</p>
         </div>
     </div>
 
@@ -78,7 +82,7 @@
         <p class="text-sm text-gray-500 mb-4">
             Sistem akan menaikkan atau menurunkan kelas siswa yang dicentang sesuai selisih tahun ajaran.
             Siswa yang tidak dicentang tidak akan berubah kelasnya.
-            Siswa kelas 10 tidak bisa dicentang saat naik kelas karena mengikuti rencana Ketua Program.
+            Siswa kelas 10 dan kelas 12 tidak bisa dicentang saat naik kelas karena mengikuti rencana Ketua Program.
         </p>
 
         <form method="POST" action="{{ route('tahun_ajaran.update') }}" id="formTahunAjaran">
@@ -182,7 +186,7 @@
                     @forelse ($siswaList as $item)
                         @php
                             $tingkatSiswa = \App\Models\kelas::tingkatDariId($item->id_kelas);
-                            $rencanaSiswa = in_array($tingkatSiswa, ['10', '11'], true) ? ($rencanaMap[(string) $item->nis] ?? null) : null;
+                            $rencanaSiswa = in_array($tingkatSiswa, ['10', '11', '12'], true) ? ($rencanaMap[(string) $item->nis] ?? null) : null;
                         @endphp
                         <tr class="hover:bg-gray-50 group"
                             data-nis="{{ $item->nis }}"
@@ -208,6 +212,15 @@
                                         </div>
                                     @else
                                         <div class="text-xs text-gray-400 mt-1">Belum direncanakan Ketua Program</div>
+                                    @endif
+                                    <span class="badge-kaprog hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 mt-1 inline-block">
+                                        Mengikuti rencana Ketua Program
+                                    </span>
+                                @elseif ($tingkatSiswa === '12')
+                                    @if (($rencanaSiswa?->id_kelas_tujuan) === 'ALUMNI')
+                                        <div class="text-xs text-emerald-700 mt-1">Rencana → Alumni (lulus)</div>
+                                    @else
+                                        <div class="text-xs text-gray-400 mt-1">Belum ditandai lulus Ketua Program</div>
                                     @endif
                                     <span class="badge-kaprog hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 mt-1 inline-block">
                                         Mengikuti rencana Ketua Program
@@ -285,6 +298,9 @@
     // Rencana penempatan kelas 10 -> 11 dari Ketua Program.
     const JUMLAH_KELAS10    = {{ (int) $preview['kelas10_ke_11'] }};
     const JUMLAH_DIRENCANAKAN = {{ (int) $preview['kelas10_direncanakan'] }};
+    // Rencana kelulusan kelas 12 -> Alumni dari Ketua Program.
+    const JUMLAH_KELAS12      = {{ (int) $preview['lulus'] }};
+    const JUMLAH_LULUS_RENCANA = {{ (int) $preview['lulus_direncanakan'] }};
 
     const form        = document.getElementById('formTahunAjaran');
     const select      = document.getElementById('selectTahun');
@@ -324,6 +340,13 @@
                         : '10 (tidak diproses, rencana Ketua Program ditahan)';
                 }
 
+                // Kelas 12 lulus hanya jika sudah ditandai Ketua Program, hanya jika naik tepat 1 tahun.
+                if (t === '12') {
+                    return selisih === 1
+                        ? '12 → Alumni (sesuai rencana Ketua Program)'
+                        : '12 (tidak diproses, rencana Ketua Program ditahan)';
+                }
+
                 return target >= TINGKAT.length
                     ? `${t} → Alumni`
                     : `${t} → ${TINGKAT[target]}`;
@@ -360,13 +383,13 @@
         }
     }
 
-    /* ---------- Kunci siswa kelas 10 saat naik kelas ---------- */
+    /* ---------- Kunci siswa kelas 10 dan 12 saat naik kelas (mengikuti rencana Ketua Program) ---------- */
 
     function kunciKelas10() {
         const naik = !!activeId && selisihTerpilih() > 0;
 
         tableBody.querySelectorAll('tr[data-nis]').forEach(row => {
-            if (row.dataset.tingkat !== '10') return;
+            if (row.dataset.tingkat !== '10' && row.dataset.tingkat !== '12') return;
 
             const cb    = row.querySelector('input.siswa-check');
             const badge = row.querySelector('.badge-kaprog');
@@ -502,13 +525,16 @@
         if (selisih <= 0) return '';
 
         if (selisih > 1) {
-            return 'Naik lebih dari 1 tahun: rencana Ketua Program tidak diterapkan dan siswa kelas 10 tetap di kelas 10.';
+            return 'Naik lebih dari 1 tahun: rencana Ketua Program tidak diterapkan dan siswa kelas 10 dan 12 tetap di kelasnya.';
         }
 
-        const belum = Math.max(0, JUMLAH_KELAS10 - JUMLAH_DIRENCANAKAN);
+        const belum   = Math.max(0, JUMLAH_KELAS10 - JUMLAH_DIRENCANAKAN);
+        const belum12 = Math.max(0, JUMLAH_KELAS12 - JUMLAH_LULUS_RENCANA);
 
         return `${JUMLAH_DIRENCANAKAN} siswa kelas 10 akan dipindah ke kelas 11 sesuai rencana Ketua Program. `
-            + `${belum} siswa kelas 10 yang belum direncanakan tetap di kelas 10.`;
+            + `${belum} siswa kelas 10 yang belum direncanakan tetap di kelas 10. `
+            + `${JUMLAH_LULUS_RENCANA} siswa kelas 12 akan lulus menjadi alumni sesuai rencana Ketua Program. `
+            + `${belum12} siswa kelas 12 yang belum ditandai lulus tetap di kelas 12.`;
     }
 
     form.addEventListener('submit', function (e) {
@@ -546,7 +572,9 @@
 
         modalJumlah.textContent = daftar.length > 0
             ? `${daftar.length} siswa yang dicentang akan diproses (kelas 11: ${perTingkat['11']}, kelas 12: ${perTingkat['12']}).`
-            : 'PERINGATAN: tidak ada siswa kelas 11 / 12 yang dicentang. Hanya tahun ajaran dan rencana kelas 10 yang diproses, siswa kelas 11 dan 12 TIDAK naik kelas.';
+            : (selisih > 0
+                ? 'PERINGATAN: tidak ada siswa kelas 11 yang dicentang. Hanya tahun ajaran dan rencana Ketua Program (kelas 10 dan 12) yang diproses, siswa kelas 11 TIDAK naik kelas.'
+                : 'PERINGATAN: tidak ada siswa kelas 11 / 12 yang dicentang. Hanya tahun ajaran yang diganti, siswa kelas 11 dan 12 TIDAK berubah kelasnya.');
         modalKaprog.textContent = teksKaprog(selisih);
 
         bukaModal();

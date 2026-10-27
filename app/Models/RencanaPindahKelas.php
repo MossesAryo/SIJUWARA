@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Rencana penempatan siswa kelas 10 ke kelas 11 (dibuat Ketua Program).
+ * Rencana perpindahan siswa (10 -> 11, 11 -> 12, 12 -> ALUMNI) yang dibuat Ketua Program.
  * Satu siswa hanya punya satu rencana (nis unik).
  */
 class RencanaPindahKelas extends Model
