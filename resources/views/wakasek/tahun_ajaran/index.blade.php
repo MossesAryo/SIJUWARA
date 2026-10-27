@@ -267,16 +267,31 @@
 <div id="modalKonfirmasi"
      class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center z-50">
     <div class="bg-white rounded-xl w-full max-w-md shadow-lg">
-        <div class="p-5 border-b">
-            <h3 class="font-semibold text-lg">Konfirmasi Ganti Tahun Ajaran</h3>
+        <div class="px-5 py-4 border-b">
+            <h3 class="text-xl font-bold text-gray-700">Konfirmasi Ganti Tahun Ajaran</h3>
         </div>
-        <div class="p-5 text-sm space-y-2">
-            <p id="modalDesc" class="text-gray-700"></p>
-            <p id="modalJumlah" class="text-gray-700"></p>
-            <p id="modalKaprog" class="text-amber-700"></p>
-            <p class="text-red-600 font-semibold mt-2">Proses ini tidak bisa dibatalkan.</p>
+        <div class="px-5 py-4 text-sm space-y-3 max-h-[70vh] overflow-y-auto">
+            {{-- Perubahan tingkat --}}
+            <div>
+                <p class="font-medium text-gray-700" id="modalArah"></p>
+                <ul id="modalPerubahan" class="mt-1 list-disc list-inside text-gray-700 space-y-0.5"></ul>
+            </div>
+
+            {{-- Siswa yang diproses --}}
+            <div>
+                <p class="font-medium text-gray-700">Siswa yang diproses</p>
+                <ul id="modalSiswa" class="mt-1 list-disc list-inside text-gray-700 space-y-0.5"></ul>
+            </div>
+
+            {{-- Rencana Ketua Program --}}
+            <div id="modalKaprogWrapper">
+                <p class="font-medium text-gray-700">Rencana Ketua Program</p>
+                <ul id="modalKaprog" class="mt-1 list-disc list-inside text-gray-700 space-y-0.5"></ul>
+            </div>
+
+            <p class="text-red-600 font-semibold">Proses ini tidak bisa dibatalkan.</p>
         </div>
-        <div class="p-5 border-t flex justify-end gap-2">
+        <div class="px-5 py-4 border-t flex justify-end gap-2">
             <button type="button" id="btnBatal"
                     class="border px-4 py-2 rounded hover:bg-gray-50">
                 Batal
@@ -310,12 +325,14 @@
     const tanpaSiswaInput = document.getElementById('tanpaSiswaInput');
     const btnSubmit   = document.getElementById('btnSubmitTahun');
 
-    const modal       = document.getElementById('modalKonfirmasi');
-    const modalDesc   = document.getElementById('modalDesc');
-    const modalJumlah = document.getElementById('modalJumlah');
-    const modalKaprog = document.getElementById('modalKaprog');
-    const btnConfirm  = document.getElementById('btnConfirm');
-    const btnBatal    = document.getElementById('btnBatal');
+    const modal              = document.getElementById('modalKonfirmasi');
+    const modalArah          = document.getElementById('modalArah');
+    const modalPerubahan     = document.getElementById('modalPerubahan');
+    const modalSiswa         = document.getElementById('modalSiswa');
+    const modalKaprogWrapper = document.getElementById('modalKaprogWrapper');
+    const modalKaprog        = document.getElementById('modalKaprog');
+    const btnConfirm         = document.getElementById('btnConfirm');
+    const btnBatal           = document.getElementById('btnBatal');
 
     const tableBody        = document.getElementById('tahunTableBody');
     const inputSearch      = document.getElementById('inputSearchTahun');
@@ -336,15 +353,15 @@
                 // Kelas 10 mengikuti rencana Ketua Program, hanya jika naik tepat 1 tahun.
                 if (t === '10') {
                     return selisih === 1
-                        ? '10 → 11 (sesuai rencana Ketua Program)'
-                        : '10 (tidak diproses, rencana Ketua Program ditahan)';
+                        ? '10 → 11 (rencana Kaprog)'
+                        : '10 tetap (rencana ditahan)';
                 }
 
                 // Kelas 12 lulus hanya jika sudah ditandai Ketua Program, hanya jika naik tepat 1 tahun.
                 if (t === '12') {
                     return selisih === 1
-                        ? '12 → Alumni (sesuai rencana Ketua Program)'
-                        : '12 (tidak diproses, rencana Ketua Program ditahan)';
+                        ? '12 → Alumni (rencana Kaprog)'
+                        : '12 tetap (rencana ditahan)';
                 }
 
                 return target >= TINGKAT.length
@@ -355,9 +372,18 @@
             // Turun: tidak pernah di bawah 10.
             const tujuan = Math.max(0, target);
             return tujuan === idx
-                ? `${t} (tidak berubah)`
+                ? `${t} tetap`
                 : `${t} → ${TINGKAT[tujuan]}`;
-        }).join(', ');
+        });
+    }
+
+    function isiDaftar(el, items) {
+        el.innerHTML = '';
+        items.forEach(function (teks) {
+            const li = document.createElement('li');
+            li.textContent = teks;
+            el.appendChild(li);
+        });
     }
 
     function selisihTerpilih() {
@@ -375,10 +401,10 @@
         }
 
         if (selisih > 0) {
-            hint.textContent = `⬆ Naik ${selisih} tingkat: ${hitungPerubahan(selisih)}`;
+            hint.textContent = `⬆ Naik ${selisih} tingkat: ${hitungPerubahan(selisih).join(', ')}`;
             hint.className   = 'text-sm text-green-700 mt-3';
         } else {
-            hint.textContent = `⬇ Turun ${Math.abs(selisih)} tingkat: ${hitungPerubahan(selisih)}`;
+            hint.textContent = `⬇ Turun ${Math.abs(selisih)} tingkat: ${hitungPerubahan(selisih).join(', ')}`;
             hint.className   = 'text-sm text-yellow-600 mt-3';
         }
     }
@@ -521,20 +547,22 @@
         modal.classList.remove('flex');
     }
 
-    function teksKaprog(selisih) {
-        if (selisih <= 0) return '';
+    function poinKaprog(selisih) {
+        if (selisih <= 0) return [];
 
         if (selisih > 1) {
-            return 'Naik lebih dari 1 tahun: rencana Ketua Program tidak diterapkan dan siswa kelas 10 dan 12 tetap di kelasnya.';
+            return ['Naik >1 tahun: rencana Kaprog tidak diterapkan, kelas 10 & 12 tetap.'];
         }
 
         const belum   = Math.max(0, JUMLAH_KELAS10 - JUMLAH_DIRENCANAKAN);
         const belum12 = Math.max(0, JUMLAH_KELAS12 - JUMLAH_LULUS_RENCANA);
 
-        return `${JUMLAH_DIRENCANAKAN} siswa kelas 10 akan dipindah ke kelas 11 sesuai rencana Ketua Program. `
-            + `${belum} siswa kelas 10 yang belum direncanakan tetap di kelas 10. `
-            + `${JUMLAH_LULUS_RENCANA} siswa kelas 12 akan lulus menjadi alumni sesuai rencana Ketua Program. `
-            + `${belum12} siswa kelas 12 yang belum ditandai lulus tetap di kelas 12.`;
+        return [
+            `10 → 11: ${JUMLAH_DIRENCANAKAN} siswa`,
+            `10 belum direncanakan: ${belum} siswa tetap di kelas 10`,
+            `12 → Alumni: ${JUMLAH_LULUS_RENCANA} siswa`,
+            `12 belum ditandai lulus: ${belum12} siswa tetap di kelas 12`,
+        ];
     }
 
     form.addEventListener('submit', function (e) {
@@ -558,7 +586,8 @@
             ? `Naik ${selisih} tingkat`
             : `Turun ${Math.abs(selisih)} tingkat`;
 
-        modalDesc.textContent = `${arah}: ${hitungPerubahan(selisih)}`;
+        modalArah.textContent = arah;
+        isiDaftar(modalPerubahan, hitungPerubahan(selisih));
 
         // Rincian siswa yang dicentang per tingkat, supaya jelas kelas 11 dan 12 ikut terkirim.
         const perTingkat = {'11': 0, '12': 0};
@@ -570,12 +599,29 @@
 
         tanpaSiswaInput.value = daftar.length === 0 ? '1' : '0';
 
-        modalJumlah.textContent = daftar.length > 0
-            ? `${daftar.length} siswa yang dicentang akan diproses (kelas 11: ${perTingkat['11']}, kelas 12: ${perTingkat['12']}).`
-            : (selisih > 0
-                ? 'PERINGATAN: tidak ada siswa kelas 11 yang dicentang. Hanya tahun ajaran dan rencana Ketua Program (kelas 10 dan 12) yang diproses, siswa kelas 11 TIDAK naik kelas.'
-                : 'PERINGATAN: tidak ada siswa kelas 11 / 12 yang dicentang. Hanya tahun ajaran yang diganti, siswa kelas 11 dan 12 TIDAK berubah kelasnya.');
-        modalKaprog.textContent = teksKaprog(selisih);
+        if (daftar.length > 0) {
+            modalSiswa.className = 'mt-1 list-disc list-inside text-gray-700 space-y-0.5';
+            isiDaftar(modalSiswa, [
+                `${daftar.length} siswa dicentang`,
+                `Kelas 11: ${perTingkat['11']} siswa`,
+                `Kelas 12: ${perTingkat['12']} siswa`,
+            ]);
+        } else {
+            modalSiswa.className = 'mt-1 list-disc list-inside text-gray-700 space-y-0.5';
+            isiDaftar(modalSiswa, selisih > 0
+                ? [
+                    'Peringatan: tidak ada siswa kelas 11 dicentang',
+                    'Hanya tahun ajaran & rencana Kaprog yang diproses',
+                ]
+                : [
+                    'Peringatan: tidak ada siswa kelas 11 / 12 dicentang',
+                    'Hanya tahun ajaran yang diganti',
+                ]);
+        }
+
+        const kaprog = poinKaprog(selisih);
+        isiDaftar(modalKaprog, kaprog);
+        modalKaprogWrapper.classList.toggle('hidden', kaprog.length === 0);
 
         bukaModal();
     });
