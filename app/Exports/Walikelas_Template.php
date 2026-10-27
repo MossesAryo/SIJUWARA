@@ -13,10 +13,11 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Template import Walikelas.
+ * Template import Guru.
  *
  * Baris 1 = judul, baris 2 = judul kolom, data mulai baris 3.
  * Walikelas_Import mendeteksi header otomatis, jadi urutan kolom tidak kaku.
+ * Id Kelas boleh kosong atau "Tanpa Kelas".
  */
 class Walikelas_Template implements WithMultipleSheets
 {
@@ -33,23 +34,24 @@ class Walikelas_Template implements WithMultipleSheets
             new class implements FromArray, WithHeadings, WithTitle, WithStyles, ShouldAutoSize {
                 public function array(): array
                 {
-                    // Baris 3 = contoh. Nama diawali "CONTOH" supaya dilewati saat import.
+                    // Baris 3-4 = contoh. Nama diawali "CONTOH" supaya dilewati saat import.
                     return [
                         ['196501011990031001', 'CONTOH - Siti Aminah, S.Pd', '11-RPL-1', 'siti.aminah'],
+                        ['197001011995031002', 'CONTOH - Budi Santoso, S.Pd', 'Tanpa Kelas', 'budi.santoso'],
                     ];
                 }
 
                 public function headings(): array
                 {
                     return [
-                        ['Template Import Walikelas'],
-                        ['NIP', 'Nama Walikelas', 'Id Kelas', 'Username (opsional)'],
+                        ['Template Import Guru'],
+                        ['NIP', 'Nama Guru', 'Id Kelas', 'Username (opsional)'],
                     ];
                 }
 
                 public function title(): string
                 {
-                    return 'Data Walikelas';
+                    return 'Data Guru';
                 }
 
                 public function styles(Worksheet $sheet)
@@ -59,15 +61,18 @@ class Walikelas_Template implements WithMultipleSheets
                         ->getNumberFormat()
                         ->setFormatCode(NumberFormat::FORMAT_TEXT);
 
+                    $contoh = [
+                        'font' => [
+                            'italic' => true,
+                            'color' => ['rgb' => '808080'],
+                        ],
+                    ];
+
                     return [
                         1 => ['font' => ['bold' => true, 'size' => 14]],
                         2 => ['font' => ['bold' => true]],
-                        3 => [
-                            'font' => [
-                                'italic' => true,
-                                'color' => ['rgb' => '808080'],
-                            ],
-                        ],
+                        3 => $contoh,
+                        4 => $contoh,
                     ];
                 }
             },
@@ -77,13 +82,15 @@ class Walikelas_Template implements WithMultipleSheets
 
                 private const PETUNJUK = [
                     'PETUNJUK PENGISIAN',
-                    '1. Isi sheet "Data Walikelas" mulai baris 3. Baris 1 dan 2 jangan diubah.',
-                    '2. NIP wajib diisi (angka) dan tidak boleh sama dengan walikelas lain. Kolom NIP sudah berformat Teks.',
-                    '3. Nama Walikelas wajib diisi.',
-                    '4. Id Kelas diisi dengan Id Kelas dari daftar di bawah (contoh: 11-RPL-1). Nama kelas seperti "11 RPL 1" juga bisa.',
-                    '5. Username boleh dikosongkan. Kalau kosong, dipakai Nama Walikelas.',
-                    '6. Akun login dibuat otomatis dengan password default. NIP yang sudah ada hanya diperbarui nama dan kelasnya.',
-                    '7. Baris contoh (nama diawali CONTOH) dilewati saat import. Boleh dihapus atau ditimpa.',
+                    '1. Isi sheet "Data Guru" mulai baris 3. Baris 1 dan 2 jangan diubah.',
+                    '2. NIP wajib diisi (angka) dan tidak boleh sama dengan guru lain. Kolom NIP sudah berformat Teks.',
+                    '3. Nama Guru wajib diisi.',
+                    '4. Id Kelas boleh dikosongkan. Kalau diisi, pakai Id Kelas dari daftar di bawah (contoh: 11-RPL-1). Nama kelas seperti "11 RPL 1" juga bisa.',
+                    '5. Untuk guru yang tidak memiliki kelas, isi Id Kelas dengan "Tanpa Kelas" atau biarkan kosong (guru baru).',
+                    '6. Untuk guru yang sudah ada: Id Kelas kosong = kelas tidak diubah, "Tanpa Kelas" = kelas dihapus.',
+                    '7. Username boleh dikosongkan. Kalau kosong, dipakai Nama Guru.',
+                    '8. Akun login dibuat otomatis dengan password default. NIP yang sudah ada hanya diperbarui nama dan kelasnya.',
+                    '9. Baris contoh (nama diawali CONTOH) dilewati saat import. Boleh dihapus atau ditimpa.',
                 ];
 
                 public function __construct($kelas)

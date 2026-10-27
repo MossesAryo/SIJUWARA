@@ -88,6 +88,7 @@ class WalikelasController extends Controller
         ]);
 
         // Validasi di luar try/catch supaya pesan per kolom tampil di form.
+        // id_kelas boleh kosong (guru tanpa kelas, disimpan sebagai NULL).
         $data = $request->validate([
             'nip_walikelas' => [
                 'required',
@@ -100,7 +101,7 @@ class WalikelasController extends Controller
             ],
             'nama_walikelas' => ['required', 'string', 'max:255'],
             'id_kelas' => [
-                'required',
+                'nullable',
                 Rule::exists('kelas', 'id_kelas'),
                 Rule::unique('walikelas', 'id_kelas'),
             ],
@@ -109,7 +110,6 @@ class WalikelasController extends Controller
             'nip_walikelas.regex'     => 'NIP harus berupa angka (maksimal 18 digit).',
             'nama_walikelas.required' => 'Nama walikelas wajib diisi.',
             'nama_walikelas.max'      => 'Nama walikelas maksimal 255 karakter.',
-            'id_kelas.required'       => 'Kelas wajib dipilih.',
             'id_kelas.exists'         => 'Kelas yang dipilih tidak valid.',
             'id_kelas.unique'         => 'Kelas ini sudah memiliki walikelas.',
         ]);
@@ -127,7 +127,7 @@ class WalikelasController extends Controller
                     'nip_walikelas'  => $data['nip_walikelas'],
                     'username'       => $user->username,
                     'nama_walikelas' => $data['nama_walikelas'],
-                    'id_kelas'       => $data['id_kelas'],
+                    'id_kelas'       => $data['id_kelas'] ?? null,
                 ]);
             });
         } catch (\Throwable $e) {
@@ -161,7 +161,7 @@ class WalikelasController extends Controller
             $request->validate([
                 'nip_walikelas' => 'required|integer',
                 'username' => 'required|string',
-                'id_kelas' => 'required|string',
+                'id_kelas' => 'nullable|string',
                 'nama_walikelas' => 'required|string',
             ]);
 
@@ -177,7 +177,7 @@ class WalikelasController extends Controller
                 'nip_walikelas' => $request->nip_walikelas,
                 'username' => $user->username, // Tetap gunakan username yang sudah ada
                 'nama_walikelas' => $request->nama_walikelas,
-                'id_kelas' => $request->id_kelas,
+                'id_kelas' => $request->filled('id_kelas') ? $request->id_kelas : null,
             ]);
 
             return redirect()->route('walikelas.index')->with('success', 'Data berhasil diperbarui.');
