@@ -122,7 +122,7 @@
                 </li>
                 @endif
 
-                
+
 
                 <!-- ───── MANAJEMEN USER ───── -->
                 @if (auth()->user()->hasRole(1))
@@ -147,7 +147,7 @@
                                     class="flex items-center gap-3 px-3 py-2 text-sm rounded-lg menu-link
                                     {{ request()->routeIs('walikelas.*') ? 'active-link' : 'text-gray-600 hover:bg-gray-50' }}">
                                     <i class="bi bi-person-vcard"></i>
-                                    <span>Wali Kelas</span>
+                                    <span>Guru</span>
                                 </a>
                             </li>
                             <li>
@@ -196,7 +196,7 @@
                 <!-- ───── INPUT DATA ───── -->
                 <li><div class="section-divider mt-2"></div></li>
                 <li><div class="section-label">Input Data</div></li>
-               
+
 
                 {{-- <li class="px-3">
                     <a href="{{ route('penghargaan.index') }}"
@@ -214,9 +214,9 @@
                         <span>Pelanggaran</span>
                     </a>
                 </li> --}}
-                
-                
-                
+
+
+
                 <li class="px-3">
                     <a href="{{ route('skoring_penghargaan.index') }}"
                         class="flex items-center gap-3 px-3 py-2.5 rounded-lg menu-link
@@ -256,7 +256,7 @@
                     </a>
                 </li>
 
-              
+
 
                 @if (auth()->user()->hasRole([1]))
                 <li class="px-3">
@@ -275,7 +275,7 @@
                         <span>Tahun Ajaran</span>
                     </a>
                 </li>
-                
+
                 @endif
 
             </ul>

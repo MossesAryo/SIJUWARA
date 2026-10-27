@@ -13,11 +13,17 @@ use Maatwebsite\Excel\Concerns\ToCollection;
 class Walikelas_Import implements ToCollection
 {
     private const HEADER_ALIASES = [
-        'nip'      => ['nip', 'nipwalikelas', 'nomorindukpegawai'],
-        'nama'     => ['namawalikelas', 'nama', 'namalengkap'],
-        'kelas'    => ['idkelas', 'kelas', 'kodekelas', 'namakelas'],
-        'username' => ['username'], // opsional, kalau kosong dipakai nama walikelas
+        'nip'      => ['nip', 'nipguru', 'nipwalikelas', 'nomorindukpegawai'],
+        'nama'     => ['namaguru', 'namawalikelas', 'nama', 'namalengkap'],
+        'kelas'    => ['idkelas', 'kelas', 'kodekelas', 'namakelas'], // opsional
+        'username' => ['username'], // opsional, kalau kosong dipakai nama guru
     ];
+
+    /**
+     * Isi kolom kelas yang berarti "tanpa kelas" (sudah dinormalisasi:
+     * huruf kecil, hanya a-z 0-9). Tanda "-" menjadi string kosong.
+     */
+    private const TANPA_KELAS = ['', 'tanpakelas', 'tidakada', 'tidakpunyakelas', 'kosong', 'none', 'null', 'na'];
 
     private const HEADER_SCAN_ROWS = 10;
 
@@ -33,16 +39,27 @@ class Walikelas_Import implements ToCollection
     /** Key kelas yang cocok ke lebih dari satu kelas (tidak bisa dipastikan) */
     private array $kelasAmbigu = [];
 
+    /** Sudah ada sheet dengan header valid (sheet "Petunjuk" diabaikan setelahnya) */
+    private bool $headerFound = false;
+
     public function collection(Collection $rows)
     {
         [$map, $startIndex] = $this->detectColumns($rows);
 
         if ($map === null) {
-            $this->errors[] = 'Header tidak ditemukan. Kolom wajib: NIP, Nama Walikelas, Id Kelas '
-                . '(kolom Username boleh ditambahkan, tidak wajib).';
+            // Sheet lain (mis. "Petunjuk & Kelas") memang tidak punya header data.
+            // Error hanya dicatat kalau belum ada satu pun sheet yang headernya valid.
+            $pesan = 'Header tidak ditemukan. Kolom wajib: NIP, Nama Guru '
+                . '(kolom Id Kelas dan Username boleh ditambahkan, tidak wajib).';
+
+            if (!$this->headerFound && !in_array($pesan, $this->errors, true)) {
+                $this->errors[] = $pesan;
+            }
 
             return;
         }
+
+        $this->headerFound = true;
 
         $kelasMap = $this->buildKelasMap();
 
@@ -60,7 +77,7 @@ class Walikelas_Import implements ToCollection
 
             $nipRaw      = $row[$map['nip']] ?? null;
             $namaRaw     = $row[$map['nama']] ?? null;
-            $kelasRaw    = $row[$map['kelas']] ?? null;
+            $kelasRaw    = isset($map['kelas']) ? ($row[$map['kelas']] ?? null) : null;
             $usernameRaw = isset($map['username']) ? ($row[$map['username']] ?? null) : null;
 
             if ($this->isBlank($nipRaw) && $this->isBlank($namaRaw) && $this->isBlank($kelasRaw)) {
@@ -97,11 +114,11 @@ class Walikelas_Import implements ToCollection
 
             $nama = trim(preg_replace('/\s+/u', ' ', (string) $namaRaw));
             if ($nama === '') {
-                $this->fail($barisExcel, "Nama walikelas kosong (NIP $nip)");
+                $this->fail($barisExcel, "Nama guru kosong (NIP $nip)");
                 continue;
             }
             if (mb_strlen($nama) > 255) {
-                $this->fail($barisExcel, "Nama walikelas terlalu panjang (NIP $nip)");
+                $this->fail($barisExcel, "Nama guru terlalu panjang (NIP $nip)");
                 continue;
             }
 
@@ -114,31 +131,43 @@ class Walikelas_Import implements ToCollection
                 continue;
             }
 
-            // Spasi, tanda hubung, dan huruf besar/kecil diabaikan:
-            // "10 PPLG 1" == "10-pplg-1" == "10PPLG1"
-            $kelasKey = $this->normalizeHeader(kelas::romawiKeAngka($kelasRaw));
-            if ($kelasKey === '') {
-                $this->fail($barisExcel, "Kelas kosong (NIP $nip)");
-                continue;
-            }
+            // === Kelas (opsional) ===
+            //  - sel kosong / kolom tidak ada : guru baru = tanpa kelas, guru lama = kelas tidak diubah
+            //  - "Tanpa Kelas" atau "-"       : guru dijadikan tanpa kelas (juga untuk guru lama)
+            //  - isi kelas                    : dicocokkan ke daftar kelas
+            $idKelas  = null;
+            $setKelas = false;
 
-            $kelasTeks = trim((string) $kelasRaw);
-            $kelas = $kelasMap[$kelasKey] ?? null;
+            if (!$this->isBlank($kelasRaw)) {
+                // Spasi, tanda hubung, dan huruf besar/kecil diabaikan:
+                // "10 PPLG 1" == "10-pplg-1" == "10PPLG1"
+                $kelasKey = $this->normalizeHeader(kelas::romawiKeAngka($kelasRaw));
 
-            if (!$kelas) {
-                if (isset($this->kelasAmbigu[$kelasKey])) {
-                    $this->fail(
-                        $barisExcel,
-                        "Kelas '$kelasTeks' cocok dengan lebih dari satu kelas, pakai Id Kelas (NIP $nip)"
-                    );
+                if (in_array($kelasKey, self::TANPA_KELAS, true)) {
+                    $setKelas = true; // id_kelas tetap null
                 } else {
-                    $this->fail(
-                        $barisExcel,
-                        "Kelas '$kelasTeks' tidak ditemukan, pakai Id Kelas seperti "
-                        . "'10-RPL-1' atau nama seperti '10 PPLG 1' (NIP $nip)"
-                    );
+                    $kelasTeks = trim((string) $kelasRaw);
+                    $kelas = $kelasMap[$kelasKey] ?? null;
+
+                    if (!$kelas) {
+                        if (isset($this->kelasAmbigu[$kelasKey])) {
+                            $this->fail(
+                                $barisExcel,
+                                "Kelas '$kelasTeks' cocok dengan lebih dari satu kelas, pakai Id Kelas (NIP $nip)"
+                            );
+                        } else {
+                            $this->fail(
+                                $barisExcel,
+                                "Kelas '$kelasTeks' tidak ditemukan, pakai Id Kelas seperti "
+                                . "'10-RPL-1', nama seperti '10 PPLG 1', atau 'Tanpa Kelas' (NIP $nip)"
+                            );
+                        }
+                        continue;
+                    }
+
+                    $idKelas  = $kelas->id_kelas;
+                    $setKelas = true;
                 }
-                continue;
             }
 
             if (isset($seenNip[$nip])) {
@@ -162,7 +191,8 @@ class Walikelas_Import implements ToCollection
                 'nip_walikelas'  => $nip,
                 'username'       => $username,
                 'nama_walikelas' => $nama,
-                'id_kelas'       => $kelas->id_kelas,
+                'id_kelas'       => $idKelas,
+                'set_kelas'      => $setKelas,
                 'baris'          => $barisExcel,
             ];
         }
@@ -207,7 +237,7 @@ class Walikelas_Import implements ToCollection
                 if ($waliLain) {
                     $this->fail(
                         $item['baris'],
-                        "Username '{$item['username']}' sudah dipakai walikelas lain (NIP {$waliLain->nip_walikelas})"
+                        "Username '{$item['username']}' sudah dipakai guru lain (NIP {$waliLain->nip_walikelas})"
                     );
                     continue;
                 }
@@ -215,7 +245,7 @@ class Walikelas_Import implements ToCollection
                 if ((int) $user->role !== 3) {
                     $this->fail(
                         $item['baris'],
-                        "Username '{$item['username']}' sudah dipakai akun lain yang bukan walikelas"
+                        "Username '{$item['username']}' sudah dipakai akun lain yang bukan guru"
                     );
                     continue;
                 }
@@ -233,12 +263,14 @@ class Walikelas_Import implements ToCollection
                 $item = $p['item'];
 
                 if ($p['type'] === 'update') {
-                    // Akun (username) tidak diubah, hanya nama dan kelas
+                    // Akun (username) tidak diubah. Nama selalu diperbarui,
+                    // kelas hanya kalau kolom kelas terisi (termasuk "Tanpa Kelas").
                     $wali = $p['wali'];
-                    $wali->fill([
-                        'nama_walikelas' => $item['nama_walikelas'],
-                        'id_kelas'       => $item['id_kelas'],
-                    ]);
+                    $wali->nama_walikelas = $item['nama_walikelas'];
+
+                    if ($item['set_kelas']) {
+                        $wali->id_kelas = $item['id_kelas'];
+                    }
 
                     if ($wali->isDirty()) {
                         $wali->save();
@@ -254,7 +286,7 @@ class Walikelas_Import implements ToCollection
                     'nip_walikelas'  => $item['nip_walikelas'],
                     'username'       => $user->username,
                     'nama_walikelas' => $item['nama_walikelas'],
-                    'id_kelas'       => $item['id_kelas'],
+                    'id_kelas'       => $item['id_kelas'], // null = tanpa kelas
                 ]);
 
                 $this->ditambahkan++;
@@ -265,7 +297,7 @@ class Walikelas_Import implements ToCollection
     public function summary(): string
     {
         $parts = [];
-        if ($this->ditambahkan) $parts[] = "{$this->ditambahkan} walikelas ditambahkan";
+        if ($this->ditambahkan) $parts[] = "{$this->ditambahkan} guru ditambahkan";
         if ($this->diperbarui)  $parts[] = "{$this->diperbarui} diperbarui";
         if ($this->dilewati)    $parts[] = "{$this->dilewati} baris dilewati";
 
@@ -295,6 +327,7 @@ class Walikelas_Import implements ToCollection
 
     /**
      * Cari baris header dalam 10 baris pertama.
+     * Wajib: NIP dan Nama. Kelas dan Username opsional.
      * Mengembalikan [map, indexBarisPertamaData] atau [null, 0] kalau header tidak ketemu.
      */
     private function detectColumns(Collection $rows): array
@@ -316,7 +349,7 @@ class Walikelas_Import implements ToCollection
                 }
             }
 
-            if (isset($map['nip'], $map['nama'], $map['kelas'])) {
+            if (isset($map['nip'], $map['nama'])) {
                 return [$map, $i + 1];
             }
         }

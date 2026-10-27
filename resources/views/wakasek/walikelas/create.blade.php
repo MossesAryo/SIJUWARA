@@ -43,9 +43,11 @@
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 </div>
                 <div>
-                    <label for="id_kelas" class="block text-sm font-medium text-gray-700 mb-1">Kelas</label>
-                    <select class="form-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" id="id_kelas" name="id_kelas" required>
-                        <option value="" disabled {{ $bukaCreate && old('id_kelas') ? '' : 'selected' }}>Pilih Kelas</option>
+                    <label for="id_kelas" class="block text-sm font-medium text-gray-700 mb-1">
+                        Kelas <span class="text-gray-400 font-normal"></span>
+                    </label>
+                    <select class="form-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" id="id_kelas" name="id_kelas">
+                        <option value="" {{ $bukaCreate && old('id_kelas') ? '' : 'selected' }}>Tanpa Kelas</option>
                         @foreach ($kelas as $item)
                             <option value="{{ $item->id_kelas }}"
                                 {{ $bukaCreate && old('id_kelas') === $item->id_kelas ? 'selected' : '' }}>

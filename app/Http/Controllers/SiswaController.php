@@ -696,7 +696,7 @@ class SiswaController extends Controller
         try {
             $request->validate([
                 'file'     => 'required|file|mimes:xlsx,xls,csv,txt|max:10240',
-                'id_kelas' => 'required|exists:kelas,id_kelas',
+                'id_kelas' => 'nullable|exists:kelas,id_kelas',
             ], [
                 'file.required'     => 'Pilih file Excel terlebih dahulu.',
                 'file.mimes'        => 'Format file harus .xlsx, .xls, atau .csv.',

@@ -9,13 +9,13 @@
         <!-- Header -->
         <div class="flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold gradient-text">Data Walikelas</h1>
-                <p class="text-gray-600 mt-1">Kelola data walikelas</p>
+                <h1 class="text-2xl font-bold gradient-text">Data Guru</h1>
+                <p class="text-gray-600 mt-1">Kelola data guru</p>
             </div>
             <button type="button" onclick="openCreateModal()"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
                 <i class="bi bi-plus-lg"></i>
-                Tambah Walikelas
+                Tambah Guru
             </button>
         </div>
 
@@ -95,7 +95,7 @@
         <!-- Data Table -->
         <div class="bg-white rounded-xl shadow-sm border overflow-visible">
             <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Daftar Walikelas</h3>
+                <h3 class="text-lg font-semibold text-gray-900">Daftar Guru</h3>
             </div>
 
             <div class="overflow-x-auto">
@@ -117,7 +117,7 @@
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2">
                                     <i class="bi bi-person text-gray-400"></i>
-                                    Nama Walikelas
+                                    Nama Guru
                                 </div>
                             </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -154,7 +154,7 @@
                                     <div class="text-sm font-semibold text-gray-900">{{ $item->nama_walikelas }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="text-lg font-bold text-black">{{ $item->kelas->nama_kelas ?? '-' }}</span>
+                                    <span class="text-lg font-bold text-black">{{ $item->kelas->nama_kelas ?? 'Tanpa Kelas' }}</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center gap-1">
@@ -165,7 +165,7 @@
                                             data-kelas="{{ $item->id_kelas }}"
                                             onclick="openEditModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full"
-                                            title="Edit Walikelas">
+                                            title="Edit Guru">
                                             <i class="bi bi-pencil-square text-sm"></i>
                                         </button>
                                         <button type="button"
@@ -173,7 +173,7 @@
                                             data-nama="{{ $item->nama_walikelas }}"
                                             onclick="openDeleteModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full"
-                                            title="Hapus Walikelas">
+                                            title="Hapus Guru">
                                             <i class="bi bi-trash text-sm"></i>
                                         </button>
                                     </div>
@@ -187,11 +187,11 @@
                                         <i class="bi bi-people text-3xl text-gray-400"></i>
                                     </div>
                                     @if (request()->filled('search') || request()->filled('kelas'))
-                                        <h3 class="text-lg font-medium text-gray-900 mb-2">Data walikelas tidak ditemukan</h3>
+                                        <h3 class="text-lg font-medium text-gray-900 mb-2">Data guru tidak ditemukan</h3>
                                         <p class="text-gray-500">Coba kata kunci atau filter yang lain.</p>
                                     @else
-                                        <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada data Walikelas</h3>
-                                        <p class="text-gray-500">Tambahkan data walikelas untuk memulai.</p>
+                                        <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada data Guru</h3>
+                                        <p class="text-gray-500">Tambahkan data guru untuk memulai.</p>
                                     @endif
                                 </td>
                             </tr>

@@ -34,13 +34,13 @@ class AkumulasiController extends Controller
 
             if ($guruBk) {
                 // Asumsi relasi di model Guru_bk bernama 'kelas'
-                $kelasIds = $guruBk->kelas()->pluck('id_kelas')->toArray(); 
+                $kelasIds = $guruBk->kelas()->pluck('id_kelas')->toArray();
 
                 if (!empty($kelasIds)) {
                     $query->whereIn('id_kelas', $kelasIds);
                 } else {
                     // Jika guru BK tidak punya kelas, tampilkan kosong atau semua (sesuai kebutuhan)
-                    $siswa = collect([]); 
+                    $siswa = collect([]);
                     return view('wakasek.akumulasi.index', compact('siswa', 'jurusanList', 'kelasList'));
                 }
             }
@@ -55,7 +55,7 @@ class AkumulasiController extends Controller
             }
 
             $query->where('id_kelas', $walikelas->id_kelas);
-            
+
             // Filter dropdown kelas hanya milik walikelas ini
             $kelasList = Kelas::where('id_kelas', $walikelas->id_kelas)->get();
         }
@@ -92,7 +92,7 @@ class AkumulasiController extends Controller
 
             $user  = Auth::user();
             $query = Siswa::with(['kelas.jurusan']);
-            
+
             // Gunakan helper scope role agar data yang di-export sama dengan yang dilihat user
             $query = $this->applyRoleScope($query, $user);
             $query = $this->applyRequestFilters($request, $query, $user);
@@ -103,7 +103,7 @@ class AkumulasiController extends Controller
             return $pdf->download('laporan_akumulasi.pdf');
         } catch (\Exception $e) {
             // Debugging: Uncomment baris bawah untuk melihat error asli jika PDF gagal
-            // throw $e; 
+            // throw $e;
             return redirect()->back()->with('error', 'Gagal membuat PDF: ' . $e->getMessage());
         }
     }
@@ -113,7 +113,7 @@ class AkumulasiController extends Controller
         try {
             $user  = Auth::user();
             $query = Siswa::with(['kelas.jurusan']);
-            
+
             $query = $this->applyRoleScope($query, $user);
             $query = $this->applyRequestFilters($request, $query, $user);
 
