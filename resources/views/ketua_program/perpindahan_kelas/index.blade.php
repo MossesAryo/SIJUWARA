@@ -1,5 +1,13 @@
 @extends('layouts.wakasek.app')
 
+@push('css')
+    {{-- Font isi halaman & textbox (sama seperti halaman login). --}}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+@endpush
+
 @php
     $modeDipilih   = old('mode', 'manual');
     $tujuanManual  = old('kelas_tujuan', '');
@@ -14,7 +22,7 @@
 @endphp
 
 @section('content')
-<div class="space-y-6">
+<div class="space-y-6 font-jakarta">
 
     {{-- Header --}}
     <div>
@@ -196,7 +204,7 @@
             <div id="panelManual" class="{{ $modeDipilih === 'manual' ? '' : 'hidden' }}">
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Kelas {{ $tujuan }} tujuan</label>
                 <select name="kelas_tujuan" id="selectKelasTujuan"
-                    class="border rounded px-4 py-2 w-full md:w-1/2">
+                    class="w-full md:w-1/2 rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                     <option value="">-- Pilih kelas {{ $tujuan }} --</option>
                     @foreach ($kelasTujuan as $k)
                         <option value="{{ $k->id_kelas }}" data-nama="{{ $k->nama_kelas }}"
@@ -228,14 +236,16 @@
 
             <div class="mt-5 flex flex-col md:flex-row md:items-center gap-3">
                 <button type="submit" id="btnSubmit"
-                    class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200/70 transition duration-200 hover:bg-blue-700 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                     {{ $bisaProses ? '' : 'disabled' }}>
-                    {{ $untukAlumni ? 'Simpan Rencana Lulus' : 'Simpan Rencana' }}
+                    <i class="bi {{ $untukAlumni ? 'bi-mortarboard-fill' : 'bi-check2-circle' }} text-base"></i>
+                    <span>{{ $untukAlumni ? 'Simpan Rencana Lulus' : 'Simpan Rencana' }}</span>
                 </button>
                 <button type="button" id="btnBatalRencana"
-                    class="border border-red-300 text-red-700 hover:bg-red-50 px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-6 py-3 text-sm font-semibold text-red-700 transition duration-200 hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                     {{ $totalRencana > 0 ? '' : 'disabled' }}>
-                    {{ $untukAlumni ? 'Batalkan Rencana Lulus Siswa Terpilih' : 'Batalkan Rencana Siswa Terpilih' }}
+                    <i class="bi bi-x-circle text-base"></i>
+                    <span>{{ $untukAlumni ? 'Batalkan Rencana Lulus Siswa Terpilih' : 'Batalkan Rencana Siswa Terpilih' }}</span>
                 </button>
                 <p id="infoDipilih" class="text-sm text-gray-600"></p>
             </div>
@@ -251,9 +261,9 @@
                     <p class="text-sm text-gray-500">{{ $totalSiswa }} siswa aktif. Centang siswa yang akan {{ $untukAlumni ? 'lulus' : 'direncanakan' }}.</p>
                 </div>
                 <div class="relative w-full md:w-64">
-                    <i class="bi bi-search absolute left-3 top-2.5 text-gray-400"></i>
+                    <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     <input id="inputSearchSiswa" type="text" placeholder="Cari Siswa..."
-                        class="pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full">
+                        class="w-full rounded-xl border-2 border-gray-200 bg-white pl-10 pr-4 py-3 text-sm font-medium text-gray-800 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                 </div>
             </div>
         </div>
@@ -265,7 +275,7 @@
                         <i class="bi bi-collection text-gray-500"></i> Kelas Asal
                     </label>
                     <select id="filterKelasAsal"
-                        class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
+                        class="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                         <option value="">-- Semua Kelas {{ $asal }} --</option>
                         @foreach ($kelasAsal as $k)
                             <option value="{{ $k->id_kelas }}">{{ $k->nama_kelas }}</option>
@@ -277,7 +287,7 @@
                         <i class="bi bi-diagram-3 text-gray-500"></i> Status Rencana
                     </label>
                     <select id="filterStatusRencana"
-                        class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
+                        class="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                         <option value="">-- Semua --</option>
                         <option value="belum">{{ $untukAlumni ? 'Belum ditandai lulus' : 'Belum ditempatkan' }}</option>
                         <option value="sudah">Sudah direncanakan</option>
