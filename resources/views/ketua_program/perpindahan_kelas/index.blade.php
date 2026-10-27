@@ -80,7 +80,7 @@
     {{-- Isi kelas 11 --}}
     <div class="bg-white border rounded-xl p-6">
         <h3 class="font-semibold text-lg mb-1">Kelas 11 Program Anda</h3>
-        <p class="text-sm text-gray-500 mb-4">Jumlah siswa saat ini dan jumlah siswa yang sudah direncanakan masuk.</p>
+        <p class="text-sm text-gray-500 mb-4">Siswa kelas 11 saat ini akan naik ke kelas 12 saat pergantian tahun ajaran. Pembagian acak dihitung dari rencana masuk saja, sehingga tiap kelas mendapat jumlah yang sama.</p>
 
         @if ($kelasTujuan->isEmpty())
             <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded text-sm">

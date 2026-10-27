@@ -7,9 +7,14 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Kelas tujuan untuk kenaikan kelas:
- *   10-RPL-1 -> 11-RPL-1   (nama "11 RPL 1")
+ * Kelas tujuan untuk kenaikan kelas.
+ *
+ * Hanya kelas 11 -> 12 yang dipetakan satu-satu dari id kelasnya:
  *   11-MLOG-1 -> 12-MLOG-1 (nama "12 MLOG 1")
+ *
+ * Kelas 10 -> 11 TIDAK dipetakan satu-satu. Siswa kelas 10 dicampur dan ditempatkan
+ * ke kelas 11 yang SUDAH ADA sesuai rencana Ketua Program (mis. 10 MPLB 5 bisa
+ * masuk 11 MLOG 1), jadi kelas 10 tidak membutuhkan kelas 11 pasangan.
  *
  * Kelas tujuan harus ada sebelum tahun ajaran diganti.
  */
@@ -30,11 +35,12 @@ class KelasTujuan
         $hasil  = [];
 
         foreach ($semua as $k) {
-            if (!preg_match('/^(10|11)-(.+)-(\d+)$/', trim((string) $k->id_kelas), $m)) {
+            // Hanya kelas 11 yang butuh pasangan kelas 12 dengan kode & nomor yang sama.
+            if (!preg_match('/^(11)-(.+)-(\d+)$/', trim((string) $k->id_kelas), $m)) {
                 continue;
             }
 
-            $tingkatBaru = $m[1] === '10' ? '11' : '12';
+            $tingkatBaru = '12';
             $idBaru      = "{$tingkatBaru}-{$m[2]}-{$m[3]}";
 
             if (isset($ada[$idBaru])) {

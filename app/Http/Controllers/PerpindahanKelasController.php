@@ -285,20 +285,27 @@ class PerpindahanKelasController extends Controller
         if ($mode === 'manual') {
             $rencana[$tujuan[0]] = $nisValid;
         } else {
-            // Acak: kocok siswa, lalu selalu masukkan ke kelas yang isinya paling sedikit.
-            // Isi = siswa aktif yang sudah di kelas itu + rencana siswa lain (rencana lama
-            // siswa yang sedang diproses tidak dihitung karena akan diganti).
-            $isi          = $this->hitungIsiKelas($tujuan);
-            $direncanakan = $this->hitungRencana($tujuan, $nisValid);
+            // Acak: kocok siswa, lalu selalu masukkan ke kelas yang rencana masuknya paling sedikit.
+            //
+            // Yang dihitung HANYA rencana siswa lain di kelas tujuan tersebut. Siswa yang
+            // sekarang berada di kelas 11 TIDAK dihitung, karena saat tahun ajaran diganti
+            // mereka naik ke kelas 12 sehingga kelas 11 kosong untuk angkatan baru.
+            // (Rencana lama siswa yang sedang diproses tidak dihitung karena akan diganti.)
+            // Hasilnya: tiap kelas tujuan mendapat jumlah siswa yang sama (selisih maksimal 1).
+            $isi = array_fill_keys($tujuan, 0);
 
-            foreach ($tujuan as $id) {
-                $isi[$id] = ($isi[$id] ?? 0) + ($direncanakan[$id] ?? 0);
+            foreach ($this->hitungRencana($tujuan, $nisValid) as $id => $jumlah) {
+                $isi[$id] = (int) $jumlah;
             }
 
-            foreach ($siswaTerpilih->shuffle() as $s) {
-                $pilih = $tujuan[0];
+            // Urutan kelas diacak supaya kelas "sisa" tidak selalu jatuh ke kelas yang sama.
+            $urutanTujuan = $tujuan;
+            shuffle($urutanTujuan);
 
-                foreach ($tujuan as $id) {
+            foreach ($siswaTerpilih->shuffle() as $s) {
+                $pilih = $urutanTujuan[0];
+
+                foreach ($urutanTujuan as $id) {
                     if ($isi[$id] < $isi[$pilih]) {
                         $pilih = $id;
                     }
