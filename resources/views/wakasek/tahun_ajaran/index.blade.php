@@ -1,7 +1,7 @@
 @extends('layouts.wakasek.app')
 
 @php
-    $preview     = $preview ?? ['kelas10_ke_11' => 0, 'kelas10_direncanakan' => 0, 'kelas11_ke_12' => 0, 'lulus' => 0];
+    $preview     = $preview ?? ['kelas10_ke_11' => 0, 'kelas10_direncanakan' => 0, 'kelas11_ke_12' => 0, 'kelas11_direncanakan' => 0, 'lulus' => 0];
     $tahunAktif  = $tahunAktif ?? null;
     $rencanaMap  = $rencanaMap ?? collect();
     $tahunDipilih = old('tahun_ajaran_id', $tahunAktif?->id);
@@ -46,7 +46,9 @@
         <p>
             Penempatan siswa kelas 10 ke kelas 11 direncanakan oleh Ketua Program (siswa dicampur antar rombel).
             Saat tahun ajaran naik 1 tahun, rencana itu diterapkan otomatis. Siswa kelas 10 yang belum
-            direncanakan tetap di kelas 10. Kelas 11 → 12 dan kelas 12 → Alumni tetap dipilih di sini.
+            direncanakan tetap di kelas 10. Kelas 11 → 12 dan kelas 12 → Alumni tetap dipilih (dicentang) di sini;
+            untuk kelas 11, jika Ketua Program sudah membuat rencana, siswa yang dicentang masuk ke kelas rencana tersebut,
+            jika belum mereka masuk ke kelas pasangannya.
         </p>
     </div>
 
@@ -62,6 +64,7 @@
         <div class="bg-indigo-50 border rounded-lg p-4">
             <p class="text-sm text-gray-600">Siswa kelas 11 → 12</p>
             <p class="text-3xl font-bold text-indigo-700">{{ $preview['kelas11_ke_12'] }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ $preview['kelas11_direncanakan'] }} sudah direncanakan Ketua Program</p>
         </div>
         <div class="bg-green-50 border rounded-lg p-4">
             <p class="text-sm text-gray-600">Siswa kelas 12 → Alumni</p>
@@ -179,7 +182,7 @@
                     @forelse ($siswaList as $item)
                         @php
                             $tingkatSiswa = \App\Models\kelas::tingkatDariId($item->id_kelas);
-                            $rencanaSiswa = $tingkatSiswa === '10' ? ($rencanaMap[(string) $item->nis] ?? null) : null;
+                            $rencanaSiswa = in_array($tingkatSiswa, ['10', '11'], true) ? ($rencanaMap[(string) $item->nis] ?? null) : null;
                         @endphp
                         <tr class="hover:bg-gray-50 group"
                             data-nis="{{ $item->nis }}"
@@ -209,6 +212,14 @@
                                     <span class="badge-kaprog hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 mt-1 inline-block">
                                         Mengikuti rencana Ketua Program
                                     </span>
+                                @elseif ($tingkatSiswa === '11')
+                                    @if ($rencanaSiswa)
+                                        <div class="text-xs text-emerald-700 mt-1">
+                                            Rencana → {{ $rencanaSiswa->kelasTujuan?->nama_kelas ?? $rencanaSiswa->id_kelas_tujuan }}
+                                        </div>
+                                    @else
+                                        <div class="text-xs text-gray-400 mt-1">Belum direncanakan, naik ke kelas pasangan</div>
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">

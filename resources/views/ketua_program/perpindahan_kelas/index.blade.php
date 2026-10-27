@@ -7,6 +7,8 @@
     $totalSiswa    = $siswaList->count();
     $totalRencana  = count($rencanaMap);
     $bisaProses    = $totalSiswa > 0 && $kelasTujuan->isNotEmpty();
+    $asal          = $transisi['asal'];
+    $tujuan        = $transisi['tujuan'];
 @endphp
 
 @section('content')
@@ -14,14 +16,25 @@
 
     {{-- Header --}}
     <div>
-        <h1 class="text-2xl font-bold">Perpindahan Kelas 10 → 11</h1>
+        <h1 class="text-2xl font-bold">Perpindahan Kelas {{ $asal }} → {{ $tujuan }}</h1>
         <p class="text-gray-500">
-            Rencanakan penempatan siswa kelas 10 ke kelas 11
+            Rencanakan penempatan siswa kelas {{ $asal }} ke kelas {{ $tujuan }}
             @if ($jurusan)
                 program {{ $jurusan->nama_jurusan }}
             @endif
             . Siswa dari berbagai rombel boleh dicampur.
         </p>
+    </div>
+
+    {{-- Pilihan jenis perpindahan --}}
+    <div class="flex flex-wrap gap-2">
+        @foreach ($daftarTransisi as $kunci => $t)
+            <a href="{{ route('perpindahan_kelas.index', ['transisi' => $kunci]) }}"
+               class="px-4 py-2 rounded-lg border text-sm font-semibold
+                      {{ $kunci === $transisi['kunci'] ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50' }}">
+                Kelas {{ $t['asal'] }} → {{ $t['tujuan'] }}
+            </a>
+        @endforeach
     </div>
 
     {{-- Alert --}}
@@ -51,15 +64,19 @@
     <div class="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm flex gap-2">
         <i class="bi bi-info-circle-fill mt-0.5"></i>
         <p>
-            Yang Anda simpan di sini hanya <b>rencana</b>. Siswa tetap di kelas 10 dan baru pindah ke kelas 11
+            Yang Anda simpan di sini hanya <b>rencana</b>. Siswa tetap di kelas {{ $asal }} dan baru pindah ke kelas {{ $tujuan }}
             saat Wakasek mengganti tahun ajaran. Selama belum diganti, rencana boleh diubah atau dibatalkan.
+            @if ($asal === '11')
+                Untuk kelas 11 → 12, rencana ini hanya menentukan <b>kelas tujuan</b>; siswa yang benar-benar naik
+                tetap dicentang oleh Wakasek. Siswa kelas 11 tanpa rencana masuk ke kelas pasangannya (mis. 11 RPL 1 → 12 RPL 1).
+            @endif
         </p>
     </div>
 
     {{-- Ringkasan --}}
     <div class="grid md:grid-cols-4 gap-4">
         <div class="bg-amber-50 border rounded-lg p-4">
-            <p class="text-sm text-gray-600">Siswa kelas 10 aktif</p>
+            <p class="text-sm text-gray-600">Siswa kelas {{ $asal }} aktif</p>
             <p class="text-3xl font-bold text-amber-700">{{ $totalSiswa }}</p>
         </div>
         <div class="bg-emerald-50 border rounded-lg p-4">
@@ -72,19 +89,26 @@
             <p class="text-3xl font-bold text-blue-700" id="jumlahDipilih">0</p>
         </div>
         <div class="bg-green-50 border rounded-lg p-4">
-            <p class="text-sm text-gray-600">Kelas 11 tujuan</p>
+            <p class="text-sm text-gray-600">Kelas {{ $tujuan }} tujuan</p>
             <p class="text-3xl font-bold text-green-700">{{ $kelasTujuan->count() }}</p>
         </div>
     </div>
 
     {{-- Isi kelas 11 --}}
     <div class="bg-white border rounded-xl p-6">
-        <h3 class="font-semibold text-lg mb-1">Kelas 11 Program Anda</h3>
-        <p class="text-sm text-gray-500 mb-4">Siswa kelas 11 saat ini akan naik ke kelas 12 saat pergantian tahun ajaran. Pembagian acak dihitung dari rencana masuk saja, sehingga tiap kelas mendapat jumlah yang sama.</p>
+        <h3 class="font-semibold text-lg mb-1">Kelas {{ $tujuan }} Program Anda</h3>
+        <p class="text-sm text-gray-500 mb-4">
+            @if ($tujuan === '11')
+                Siswa kelas 11 saat ini akan naik ke kelas 12 saat pergantian tahun ajaran.
+            @else
+                Siswa kelas 12 saat ini akan lulus menjadi alumni saat pergantian tahun ajaran, sehingga kelas 12 kosong untuk angkatan baru.
+            @endif
+            Pembagian acak dihitung dari rencana masuk saja, sehingga tiap kelas mendapat jumlah yang sama.
+        </p>
 
         @if ($kelasTujuan->isEmpty())
             <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded text-sm">
-                Belum ada kelas 11 untuk program Anda. Minta Wakasek membuat kelas 11 di menu Kelas terlebih dahulu.
+                Belum ada kelas {{ $tujuan }} untuk program Anda. Minta Wakasek membuat kelas {{ $tujuan }} di menu Kelas terlebih dahulu.
             </div>
         @else
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -114,6 +138,7 @@
               data-url-simpan="{{ route('perpindahan_kelas.simpan') }}"
               data-url-batal="{{ route('perpindahan_kelas.batal') }}">
             @csrf
+            <input type="hidden" name="transisi" value="{{ $transisi['kunci'] }}">
             <input type="hidden" name="siswa_nis" id="siswaNisInput" value="{{ old('siswa_nis') }}">
 
             <div class="grid md:grid-cols-2 gap-3 mb-4">
@@ -123,7 +148,7 @@
                     <span>
                         <span class="block text-sm font-semibold text-gray-900">Ke satu kelas tujuan</span>
                         <span class="block text-xs text-gray-500">
-                            Semua siswa yang dicentang direncanakan masuk ke satu kelas 11. Ulangi untuk kelas lainnya.
+                            Semua siswa yang dicentang direncanakan masuk ke satu kelas {{ $tujuan }}. Ulangi untuk kelas lainnya.
                         </span>
                     </span>
                 </label>
@@ -133,7 +158,7 @@
                     <span>
                         <span class="block text-sm font-semibold text-gray-900">Acak dan bagi merata</span>
                         <span class="block text-xs text-gray-500">
-                            Siswa dikocok lalu dibagi rata ke beberapa kelas 11 yang Anda pilih.
+                            Siswa dikocok lalu dibagi rata ke beberapa kelas {{ $tujuan }} yang Anda pilih.
                         </span>
                     </span>
                 </label>
@@ -141,10 +166,10 @@
 
             {{-- Panel manual --}}
             <div id="panelManual" class="{{ $modeDipilih === 'manual' ? '' : 'hidden' }}">
-                <label class="block text-sm font-semibold text-gray-700 mb-1">Kelas 11 tujuan</label>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Kelas {{ $tujuan }} tujuan</label>
                 <select name="kelas_tujuan" id="selectKelasTujuan"
                     class="border rounded px-4 py-2 w-full md:w-1/2">
-                    <option value="">-- Pilih kelas 11 --</option>
+                    <option value="">-- Pilih kelas {{ $tujuan }} --</option>
                     @foreach ($kelasTujuan as $k)
                         <option value="{{ $k->id_kelas }}" data-nama="{{ $k->nama_kelas }}"
                             {{ (string) $tujuanManual === (string) $k->id_kelas ? 'selected' : '' }}>
@@ -158,7 +183,7 @@
             {{-- Panel acak --}}
             <div id="panelAcak" class="{{ $modeDipilih === 'acak' ? '' : 'hidden' }}">
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Kelas 11 tujuan (pilih minimal 2)
+                    Kelas {{ $tujuan }} tujuan (pilih minimal 2)
                 </label>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                     @foreach ($kelasTujuan as $k)
@@ -193,7 +218,7 @@
         <div class="px-6 py-4 border-b border-gray-200">
             <div class="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-900">Siswa Kelas 10</h3>
+                    <h3 class="text-lg font-semibold text-gray-900">Siswa Kelas {{ $asal }}</h3>
                     <p class="text-sm text-gray-500">{{ $totalSiswa }} siswa aktif. Centang siswa yang akan direncanakan.</p>
                 </div>
                 <div class="relative w-full md:w-64">
@@ -212,7 +237,7 @@
                     </label>
                     <select id="filterKelasAsal"
                         class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
-                        <option value="">-- Semua Kelas 10 --</option>
+                        <option value="">-- Semua Kelas {{ $asal }} --</option>
                         @foreach ($kelasAsal as $k)
                             <option value="{{ $k->id_kelas }}">{{ $k->nama_kelas }}</option>
                         @endforeach
@@ -240,7 +265,7 @@
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">NIS</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nama Siswa</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Kelas Asal</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Rencana Kelas 11</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Rencana Kelas {{ $tujuan }}</th>
                         <th class="px-5 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             <div class="flex items-center gap-2">
                                 <input type="checkbox" id="checkSemuaSiswa" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
@@ -293,8 +318,8 @@
                                 <div class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                     <i class="bi bi-people text-3xl text-gray-400"></i>
                                 </div>
-                                <h3 class="text-lg font-medium text-gray-900 mb-2">Tidak ada siswa kelas 10 aktif</h3>
-                                <p class="text-gray-500">Semua siswa kelas 10 di program Anda sudah dipindahkan.</p>
+                                <h3 class="text-lg font-medium text-gray-900 mb-2">Tidak ada siswa kelas {{ $asal }} aktif</h3>
+                                <p class="text-gray-500">Belum ada siswa kelas {{ $asal }} yang aktif di program Anda.</p>
                             </td>
                         </tr>
                     @endforelse
@@ -321,7 +346,7 @@
         <div class="p-5 text-sm space-y-2">
             <p id="modalDesc" class="text-gray-700"></p>
             <p class="text-gray-500">
-                Siswa belum pindah. Mereka baru masuk ke kelas 11 saat Wakasek mengganti tahun ajaran.
+                Siswa belum pindah. Mereka baru masuk ke kelas {{ $tujuan }} saat Wakasek mengganti tahun ajaran.
                 Rencana siswa yang sama akan diganti.
             </p>
         </div>
@@ -477,13 +502,13 @@
         const daftar = syncSiswaNisInput();
 
         if (daftar.length === 0) {
-            alert('Pilih minimal satu siswa kelas 10.');
+            alert('Pilih minimal satu siswa kelas {{ $asal }}.');
             return;
         }
 
         if (modeAktif() === 'manual') {
             if (!selectTujuan || !selectTujuan.value) {
-                alert('Pilih kelas 11 tujuan terlebih dahulu.');
+                alert('Pilih kelas {{ $tujuan }} tujuan terlebih dahulu.');
                 return;
             }
 
@@ -493,7 +518,7 @@
             const dipilih = Array.from(document.querySelectorAll('input.tujuan-acak:checked'));
 
             if (dipilih.length < 2) {
-                alert('Pilih minimal 2 kelas 11 tujuan untuk pembagian acak.');
+                alert('Pilih minimal 2 kelas {{ $tujuan }} tujuan untuk pembagian acak.');
                 return;
             }
 
