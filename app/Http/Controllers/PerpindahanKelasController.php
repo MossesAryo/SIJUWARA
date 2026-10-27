@@ -18,31 +18,40 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Rencana perpindahan kelas 10 -> 11 oleh Ketua Program.
+ * Rencana perpindahan kelas oleh Ketua Program (10 -> 11 dan 11 -> 12).
  *
- * Ketua Program hanya MENYIMPAN RENCANA. Siswa tetap di kelas 10 sampai Wakasek
+ * Ketua Program hanya MENYIMPAN RENCANA. Siswa tetap di kelas asal sampai Wakasek
  * mengganti tahun ajaran; saat itu TahunAjaranController menerapkan semua rencana
  * dan menghapusnya. Siswa boleh dicampur antar rombel (manual ke satu kelas, atau
  * acak dibagi merata).
  *
  * Batasan:
- * - Hanya siswa aktif kelas 10 milik jurusan Ketua Program yang login.
- * - Kelas tujuan hanya kelas 11 di jurusan yang sama (jurusan MP boleh ke MP atau MLOG).
+ * - Hanya siswa aktif pada tingkat asal milik jurusan Ketua Program yang login.
+ * - Kelas tujuan hanya satu tingkat di atas asal, di jurusan yang sama
+ *   (jurusan MP boleh ke MP atau MLOG).
  * - Menyimpan ulang rencana siswa yang sama = mengganti tujuannya.
  */
 class PerpindahanKelasController extends Controller
 {
-    private const TINGKAT_ASAL   = '10';
-    private const TINGKAT_TUJUAN = '11';
-    private const CHUNK          = 500;
+    /**
+     * Pilihan perpindahan yang didukung: tingkat asal => tingkat tujuan.
+     */
+    private const TRANSISI = [
+        '10-11' => ['asal' => '10', 'tujuan' => '11'],
+        '11-12' => ['asal' => '11', 'tujuan' => '12'],
+    ];
+
+    private const TRANSISI_DEFAULT = '10-11';
+    private const CHUNK            = 500;
 
     public function index()
     {
-        $ketua   = $this->ketuaLogin();
-        $jurusan = jurusan::find($ketua->id_jurusan);
+        $ketua    = $this->ketuaLogin();
+        $jurusan  = jurusan::find($ketua->id_jurusan);
+        $transisi = $this->transisiDipilih(request()->query('transisi'));
 
-        $kelasAsal   = $this->kelasPerTingkat($ketua->id_jurusan, self::TINGKAT_ASAL);
-        $kelasTujuan = $this->kelasPerTingkat($ketua->id_jurusan, self::TINGKAT_TUJUAN);
+        $kelasAsal   = $this->kelasPerTingkat($ketua->id_jurusan, $transisi['asal']);
+        $kelasTujuan = $this->kelasPerTingkat($ketua->id_jurusan, $transisi['tujuan']);
 
         $siswaList = siswa::with('kelas')
             ->where('status', 'aktif')
@@ -72,6 +81,8 @@ class PerpindahanKelasController extends Controller
         return view('ketua_program.perpindahan_kelas.index', [
             'ketua'           => $ketua,
             'jurusan'         => $jurusan,
+            'transisi'        => $transisi,
+            'daftarTransisi'  => self::TRANSISI,
             'kelasAsal'       => $kelasAsal,
             'kelasTujuan'     => $kelasTujuan,
             'siswaList'       => $siswaList,
@@ -87,15 +98,20 @@ class PerpindahanKelasController extends Controller
      */
     public function simpan(Request $request)
     {
-        $ketua = $this->ketuaLogin();
+        $ketua    = $this->ketuaLogin();
+        $transisi = $this->transisiDipilih($request->input('transisi'));
+        $asal     = $transisi['asal'];
+        $tujuan   = $transisi['tujuan'];
 
         try {
             $request->validate([
+                'transisi'            => ['nullable', Rule::in(array_keys(self::TRANSISI))],
                 'mode'                => ['required', Rule::in(['manual', 'acak'])],
                 'kelas_tujuan'        => ['nullable', 'string'],
                 'kelas_tujuan_acak'   => ['nullable', 'array'],
                 'kelas_tujuan_acak.*' => ['string'],
             ], [
+                'transisi.in'             => 'Jenis perpindahan kelas tidak valid.',
                 'mode.required'           => 'Pilih cara penempatan terlebih dahulu.',
                 'mode.in'                 => 'Cara penempatan tidak valid.',
                 'kelas_tujuan_acak.array' => 'Kelas tujuan acak tidak valid.',
@@ -105,66 +121,66 @@ class PerpindahanKelasController extends Controller
             $nisList = $this->ambilNisTerpilih($request->input('siswa_nis'));
 
             if (empty($nisList)) {
-                throw new RuntimeException('Pilih minimal satu siswa kelas 10 yang akan direncanakan.');
+                throw new RuntimeException("Pilih minimal satu siswa kelas {$asal} yang akan direncanakan.");
             }
 
-            $kelasAsal   = $this->kelasPerTingkat($ketua->id_jurusan, self::TINGKAT_ASAL);
-            $kelasTujuan = $this->kelasPerTingkat($ketua->id_jurusan, self::TINGKAT_TUJUAN)->keyBy('id_kelas');
+            $kelasAsal   = $this->kelasPerTingkat($ketua->id_jurusan, $asal);
+            $kelasTujuan = $this->kelasPerTingkat($ketua->id_jurusan, $tujuan)->keyBy('id_kelas');
 
             if ($kelasTujuan->isEmpty()) {
                 throw new RuntimeException(
-                    'Belum ada kelas 11 untuk program Anda. Minta Wakasek membuat kelas 11 di menu Kelas terlebih dahulu.'
+                    "Belum ada kelas {$tujuan} untuk program Anda. Minta Wakasek membuat kelas {$tujuan} di menu Kelas terlebih dahulu."
                 );
             }
 
             if ($mode === 'manual') {
-                $tujuan = array_values(array_filter([(string) $request->input('kelas_tujuan')]));
+                $tujuanDipilih = array_values(array_filter([(string) $request->input('kelas_tujuan')]));
 
-                if (count($tujuan) !== 1) {
-                    throw new RuntimeException('Pilih kelas 11 tujuan terlebih dahulu.');
+                if (count($tujuanDipilih) !== 1) {
+                    throw new RuntimeException("Pilih kelas {$tujuan} tujuan terlebih dahulu.");
                 }
             } else {
-                $tujuan = array_values(array_unique(
+                $tujuanDipilih = array_values(array_unique(
                     array_map('strval', (array) $request->input('kelas_tujuan_acak', []))
                 ));
 
-                if (count($tujuan) < 2) {
-                    throw new RuntimeException('Pilih minimal 2 kelas 11 tujuan untuk pembagian acak.');
+                if (count($tujuanDipilih) < 2) {
+                    throw new RuntimeException("Pilih minimal 2 kelas {$tujuan} tujuan untuk pembagian acak.");
                 }
             }
 
-            foreach ($tujuan as $idTujuan) {
+            foreach ($tujuanDipilih as $idTujuan) {
                 if (!$kelasTujuan->has($idTujuan)) {
-                    throw new RuntimeException('Kelas tujuan tidak valid atau bukan kelas 11 program Anda.');
+                    throw new RuntimeException("Kelas tujuan tidak valid atau bukan kelas {$tujuan} program Anda.");
                 }
             }
 
             $idKelasAsal = $kelasAsal->pluck('id_kelas')->all();
 
             $hasil = DB::transaction(
-                fn () => $this->simpanRencana($ketua, $nisList, $idKelasAsal, $tujuan, $mode)
+                fn () => $this->simpanRencana($ketua, $nisList, $idKelasAsal, $tujuanDipilih, $mode, $asal)
             );
 
             $rincian = collect($hasil['rincian'])
                 ->map(fn ($jumlah, $id) => $jumlah . ' ke ' . ($kelasTujuan[$id]->nama_kelas ?? $id))
                 ->implode(', ');
 
-            $ringkasan = "{$hasil['disimpan']} siswa kelas 10 direncanakan pindah ({$rincian}).";
+            $ringkasan = "{$hasil['disimpan']} siswa kelas {$asal} direncanakan pindah ({$rincian}).";
 
             if ($hasil['dilewati'] > 0) {
-                $ringkasan .= " {$hasil['dilewati']} siswa dilewati karena sudah tidak berstatus aktif kelas 10 di program Anda.";
+                $ringkasan .= " {$hasil['dilewati']} siswa dilewati karena sudah tidak berstatus aktif kelas {$asal} di program Anda.";
             }
 
             ActivityLog::catat(
                 ActivityLog::KATEGORI_SISWA,
                 'Rencana Perpindahan Kelas',
-                "Ketua Program {$ketua->nama_ketua_program} ({$ketua->id_jurusan}), mode "
+                "Ketua Program {$ketua->nama_ketua_program} ({$ketua->id_jurusan}), {$asal} -> {$tujuan}, mode "
                 . ($mode === 'acak' ? 'acak merata' : 'manual') . ': ' . $ringkasan
             );
 
-            return redirect()->route('perpindahan_kelas.index')->with(
+            return redirect()->route('perpindahan_kelas.index', ['transisi' => $transisi['kunci']])->with(
                 'success',
-                $ringkasan . ' Siswa baru pindah ke kelas 11 saat Wakasek mengganti tahun ajaran.'
+                $ringkasan . " Siswa baru pindah ke kelas {$tujuan} saat Wakasek mengganti tahun ajaran."
             );
         } catch (ValidationException $e) {
             throw $e;
@@ -187,7 +203,9 @@ class PerpindahanKelasController extends Controller
      */
     public function batal(Request $request)
     {
-        $ketua = $this->ketuaLogin();
+        $ketua    = $this->ketuaLogin();
+        $transisi = $this->transisiDipilih($request->input('transisi'));
+        $asal     = $transisi['asal'];
 
         try {
             $nisList = $this->ambilNisTerpilih($request->input('siswa_nis'));
@@ -196,7 +214,7 @@ class PerpindahanKelasController extends Controller
                 throw new RuntimeException('Pilih minimal satu siswa yang rencananya akan dibatalkan.');
             }
 
-            $idKelasAsal = $this->kelasPerTingkat($ketua->id_jurusan, self::TINGKAT_ASAL)
+            $idKelasAsal = $this->kelasPerTingkat($ketua->id_jurusan, $asal)
                 ->pluck('id_kelas')
                 ->all();
 
@@ -204,7 +222,7 @@ class PerpindahanKelasController extends Controller
                 $total = 0;
 
                 foreach (array_chunk($nisList, self::CHUNK) as $potongan) {
-                    // Hanya siswa kelas 10 di jurusan Ketua Program ini.
+                    // Hanya siswa pada tingkat asal di jurusan Ketua Program ini.
                     $nisSah = siswa::query()
                         ->whereIn('id_kelas', $idKelasAsal)
                         ->whereIn('nis', $potongan)
@@ -232,7 +250,7 @@ class PerpindahanKelasController extends Controller
                 "Ketua Program {$ketua->nama_ketua_program} ({$ketua->id_jurusan}): {$ringkasan}"
             );
 
-            return redirect()->route('perpindahan_kelas.index')->with('success', $ringkasan);
+            return redirect()->route('perpindahan_kelas.index', ['transisi' => $transisi['kunci']])->with('success', $ringkasan);
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         } catch (Throwable $e) {
@@ -250,13 +268,14 @@ class PerpindahanKelasController extends Controller
      * Simpan rencana siswa terpilih. Wajib dipanggil di dalam DB::transaction.
      *
      * @param  array<int,string>  $nisList
-     * @param  array<int,string>  $idKelasAsal  id kelas 10 milik jurusan Ketua Program
-     * @param  array<int,string>  $tujuan       id kelas 11 tujuan (sudah divalidasi)
+     * @param  array<int,string>  $idKelasAsal  id kelas asal milik jurusan Ketua Program
+     * @param  array<int,string>  $tujuan       id kelas tujuan (sudah divalidasi)
+     * @param  string             $tingkatAsal  tingkat asal ("10" / "11") untuk pesan
      * @return array{disimpan:int, dilewati:int, rincian:array<string,int>}
      */
-    private function simpanRencana(ketua_program $ketua, array $nisList, array $idKelasAsal, array $tujuan, string $mode): array
+    private function simpanRencana(ketua_program $ketua, array $nisList, array $idKelasAsal, array $tujuan, string $mode, string $tingkatAsal): array
     {
-        // Hanya siswa aktif yang benar-benar berada di kelas 10 jurusan ini.
+        // Hanya siswa aktif yang benar-benar berada di kelas asal jurusan ini.
         $siswaTerpilih = collect();
         foreach (array_chunk($nisList, self::CHUNK) as $potongan) {
             $siswaTerpilih = $siswaTerpilih->concat(
@@ -273,7 +292,7 @@ class PerpindahanKelasController extends Controller
 
         if ($siswaTerpilih->isEmpty()) {
             throw new RuntimeException(
-                'Tidak ada siswa kelas 10 aktif di program Anda yang bisa direncanakan dari pilihan tersebut.'
+                "Tidak ada siswa kelas {$tingkatAsal} aktif di program Anda yang bisa direncanakan dari pilihan tersebut."
             );
         }
 
@@ -288,8 +307,8 @@ class PerpindahanKelasController extends Controller
             // Acak: kocok siswa, lalu selalu masukkan ke kelas yang rencana masuknya paling sedikit.
             //
             // Yang dihitung HANYA rencana siswa lain di kelas tujuan tersebut. Siswa yang
-            // sekarang berada di kelas 11 TIDAK dihitung, karena saat tahun ajaran diganti
-            // mereka naik ke kelas 12 sehingga kelas 11 kosong untuk angkatan baru.
+            // sekarang berada di kelas tujuan TIDAK dihitung, karena saat tahun ajaran diganti
+            // mereka naik ke tingkat berikutnya sehingga kelas tujuan kosong untuk angkatan baru.
             // (Rencana lama siswa yang sedang diproses tidak dihitung karena akan diganti.)
             // Hasilnya: tiap kelas tujuan mendapat jumlah siswa yang sama (selisih maksimal 1).
             $isi = array_fill_keys($tujuan, 0);
@@ -444,5 +463,21 @@ class PerpindahanKelasController extends Controller
         }
 
         return $ketua;
+    }
+
+    /**
+     * Normalisasi pilihan transisi (10-11 / 11-12) dari query atau input form.
+     *
+     * @return array{kunci:string, asal:string, tujuan:string}
+     */
+    private function transisiDipilih(?string $kunci): array
+    {
+        $kunci = (string) $kunci;
+
+        if (!isset(self::TRANSISI[$kunci])) {
+            $kunci = self::TRANSISI_DEFAULT;
+        }
+
+        return ['kunci' => $kunci] + self::TRANSISI[$kunci];
     }
 }
