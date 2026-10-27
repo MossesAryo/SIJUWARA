@@ -30,6 +30,9 @@ use Throwable;
  *   menyebutkan kelas apa yang perlu dibuat dulu.
  * - Kelas 12 yang naik -> id_kelas "ALUMNI" + status "alumni".
  * - Turun kelas tidak pernah menghidupkan kembali alumni dan tidak turun di bawah 10.
+ * - Jika daftar siswa kelas 11/12 yang dikirim KOSONG padahal ada siswa aktif di kelas 11/12,
+ *   proses dibatalkan (kecuali pengguna sengaja mengonfirmasi lewat tanpa_siswa=1), supaya
+ *   tidak terjadi kasus "hanya kelas 10 yang naik".
  */
 class TahunAjaranController extends Controller
 {
@@ -158,6 +161,30 @@ class TahunAjaranController extends Controller
 
             $nisDipilih = $this->ambilNisTerpilih($request->input('siswa_nis'));
 
+            // Pengaman: daftar siswa kosong padahal ada siswa kelas 11/12 yang aktif biasanya berarti
+            // daftar centang tidak terkirim dari browser (bukan pilihan sengaja). Tanpa pengaman ini,
+            // hanya kelas 10 (rencana Ketua Program) yang pindah dan kelas 11/12 diam-diam tertinggal.
+            // Pilihan sengaja "tanpa menaikkan siswa" dikirim form lewat tanpa_siswa=1 (dari modal konfirmasi).
+            $tingkatDiproses = $this->hitungSiswaKelas11dan12();
+
+            if ($selisih !== 0 && empty($nisDipilih) && !$request->boolean('tanpa_siswa') && $tingkatDiproses > 0) {
+                Log::warning('Ganti tahun ajaran dibatalkan: daftar siswa kosong', [
+                    'tahun_ajaran_id' => $tahunBaru->id,
+                    'siswa_nis_raw'   => is_string($request->input('siswa_nis'))
+                        ? strlen($request->input('siswa_nis')) . ' karakter'
+                        : gettype($request->input('siswa_nis')),
+                ]);
+
+                throw new RuntimeException(
+                    "Tidak ada daftar siswa kelas 11 / 12 yang diterima server, padahal ada {$tingkatDiproses} siswa aktif di kelas 11 / 12. "
+                    . 'Tahun ajaran BELUM diganti dan tidak ada data yang berubah. '
+                    . 'Muat ulang halaman (Ctrl+F5), centang siswa, lalu klik Ganti Tahun Ajaran dan konfirmasi di jendela yang muncul.'
+                );
+            }
+
+            // Siswa kelas 11/12 aktif yang tidak dicentang akan tetap di kelasnya.
+            $tidakDicentang = max(0, $tingkatDiproses - $this->hitungDicentangAktif($nisDipilih));
+
             $hasil = DB::transaction(function () use ($selisih, $nisDipilih, $tahunBaru) {
                 // 1) Kelas 11 -> 12 dan 12 -> Alumni (atau turun kelas) untuk siswa yang dicentang.
                 $hasil = $this->pindahkanKelas($nisDipilih, $selisih);
@@ -180,7 +207,7 @@ class TahunAjaranController extends Controller
             // Naik lebih dari 1 tahun: rencana tidak diterapkan, tetap tersimpan.
             $rencanaDitahan = $selisih > 1 ? RencanaPindahKelas::query()->count() : 0;
 
-            $ringkasan = $this->susunRingkasan($selisih, $nisDipilih, $hasil, $menungguKaprog, $rencanaDitahan);
+            $ringkasan = $this->susunRingkasan($selisih, $nisDipilih, $hasil, $menungguKaprog, $rencanaDitahan, $tidakDicentang);
 
             ActivityLog::catat(
                 ActivityLog::KATEGORI_SISWA,
@@ -415,6 +442,43 @@ class TahunAjaranController extends Controller
     }
 
     /**
+     * Jumlah siswa aktif di kelas 11 dan 12 (yang dipilih manual di halaman ini).
+     */
+    private function hitungSiswaKelas11dan12(): int
+    {
+        return siswa::query()
+            ->where('status', 'aktif')
+            ->where(function ($q) {
+                $q->where('id_kelas', 'like', '11-%')
+                  ->orWhere('id_kelas', 'like', '12-%');
+            })
+            ->count();
+    }
+
+    /**
+     * Berapa dari NIS yang dikirim benar-benar siswa aktif kelas 11/12.
+     *
+     * @param  array<int,string>  $nisList
+     */
+    private function hitungDicentangAktif(array $nisList): int
+    {
+        $jumlah = 0;
+
+        foreach (array_chunk($nisList, self::CHUNK) as $potongan) {
+            $jumlah += siswa::query()
+                ->where('status', 'aktif')
+                ->where(function ($q) {
+                    $q->where('id_kelas', 'like', '11-%')
+                      ->orWhere('id_kelas', 'like', '12-%');
+                })
+                ->whereIn('nis', $potongan)
+                ->count();
+        }
+
+        return $jumlah;
+    }
+
+    /**
      * Ubah input siswa_nis (string "1,2,3" atau array) menjadi array NIS unik berisi angka saja.
      *
      * @return array<int,string>
@@ -462,7 +526,7 @@ class TahunAjaranController extends Controller
         return $this->uraikanIdKelas($idKelas)[0] ?? null;
     }
 
-    private function susunRingkasan(int $selisih, array $nisDipilih, array $hasil, int $menungguKaprog = 0, int $rencanaDitahan = 0): string
+    private function susunRingkasan(int $selisih, array $nisDipilih, array $hasil, int $menungguKaprog = 0, int $rencanaDitahan = 0, int $tidakDicentang = 0): string
     {
         $bagian = [];
 
@@ -479,6 +543,10 @@ class TahunAjaranController extends Controller
             $teks = 'Tidak ada siswa yang dipilih, hanya tahun ajaran yang diganti.';
         } else {
             $teks = 'Tidak ada siswa aktif yang berubah kelasnya.';
+        }
+
+        if ($tidakDicentang > 0) {
+            $teks .= " {$tidakDicentang} siswa kelas 11/12 tidak dicentang sehingga tetap di kelasnya.";
         }
 
         if ($hasil['rencana_basi'] > 0) {

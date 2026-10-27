@@ -81,6 +81,8 @@
         <form method="POST" action="{{ route('tahun_ajaran.update') }}" id="formTahunAjaran">
             @csrf
             <input type="hidden" name="siswa_nis" id="siswaNisInput" value="{{ old('siswa_nis') }}">
+            {{-- Diisi 1 oleh JavaScript hanya jika pengguna sengaja mengganti tahun tanpa mencentang siswa. --}}
+            <input type="hidden" name="tanpa_siswa" id="tanpaSiswaInput" value="0">
             <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
                 <select name="tahun_ajaran_id" id="selectTahun"
                         class="border rounded px-4 py-2 w-full md:w-1/2">
@@ -278,6 +280,7 @@
     const hint        = document.getElementById('hintSelisih');
     const infoDipilih = document.getElementById('infoDipilih');
     const nisInput    = document.getElementById('siswaNisInput');
+    const tanpaSiswaInput = document.getElementById('tanpaSiswaInput');
     const btnSubmit   = document.getElementById('btnSubmitTahun');
 
     const modal       = document.getElementById('modalKonfirmasi');
@@ -519,15 +522,30 @@
             : `Turun ${Math.abs(selisih)} tingkat`;
 
         modalDesc.textContent = `${arah}: ${hitungPerubahan(selisih)}`;
+
+        // Rincian siswa yang dicentang per tingkat, supaya jelas kelas 11 dan 12 ikut terkirim.
+        const perTingkat = {'11': 0, '12': 0};
+        daftar.forEach(nis => {
+            const baris = tableBody.querySelector(`tr[data-nis="${nis}"]`);
+            const t = baris ? baris.dataset.tingkat : '';
+            if (perTingkat[t] !== undefined) perTingkat[t]++;
+        });
+
+        tanpaSiswaInput.value = daftar.length === 0 ? '1' : '0';
+
         modalJumlah.textContent = daftar.length > 0
-            ? `${daftar.length} siswa yang dicentang akan diproses.`
-            : 'Tidak ada siswa yang dicentang untuk kelas 11 → 12 / 12 → Alumni.';
+            ? `${daftar.length} siswa yang dicentang akan diproses (kelas 11: ${perTingkat['11']}, kelas 12: ${perTingkat['12']}).`
+            : 'PERINGATAN: tidak ada siswa kelas 11 / 12 yang dicentang. Hanya tahun ajaran dan rencana kelas 10 yang diproses, siswa kelas 11 dan 12 TIDAK naik kelas.';
         modalKaprog.textContent = teksKaprog(selisih);
 
         bukaModal();
     });
 
     btnConfirm.addEventListener('click', function () {
+        // Hitung ulang daftar tepat sebelum dikirim, supaya selalu sesuai centang terakhir.
+        const daftarAkhir = syncSiswaNisInput();
+        tanpaSiswaInput.value = daftarAkhir.length === 0 ? '1' : '0';
+
         btnConfirm.disabled = true;
         btnSubmit.disabled  = true;
         btnConfirm.textContent = 'Memproses...';
