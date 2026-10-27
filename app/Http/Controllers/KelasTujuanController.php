@@ -11,7 +11,8 @@ use Throwable;
 class KelasTujuanController extends Controller
 {
     /**
-     * Buat semua kelas tujuan yang belum ada (10 -> 11 dan 11 -> 12).
+     * Buat semua kelas tujuan yang belum ada (kelas 12 untuk setiap kelas 11).
+     * Kelas 11 untuk siswa kelas 10 tidak dibuat otomatis: ditentukan Ketua Program.
      * Hanya Wakasek dan Super Admin (diatur di routes).
      */
     public function store(): RedirectResponse

@@ -46,20 +46,22 @@
 
                 <div class="w-full md:w-64 relative">
                     <i class="bi bi-search absolute left-3 top-2.5 text-gray-400"></i>
-                    <input type="text" name="search" id="inputSearch" placeholder="Cari Kelas..."
+                    <input type="text" name="search" id="inputSearch" placeholder="Cari Kelas..." value="{{ request('search') }}"
                         class="pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg w-full">
                 </div>
                 <div class="flex gap-2">
                     @php
-                        $filterCount = collect(request()->except(['page', 'search', '_token', '_method']))
-                            ->filter(function ($v) {
-                                return $v !== null && $v !== '';
-                            })
-                            ->count();
+                        // Hitung tiap pilihan yang aktif (bukan jumlah parameter URL).
+                        $filterCount = count(array_filter((array) request('tingkat', []), fn ($v) => $v !== ''))
+                            + (request('sort') ? 1 : 0);
+
+                        if (auth()->user()->role != '4') {
+                            $filterCount += count(array_filter((array) request('jurusan', []), fn ($v) => $v !== ''));
+                        }
                     @endphp
-                    <button onclick="openFilterModal()"
-                        class="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5">
-                        <i class="bi bi-funnel"></i>
+                    <button type="button" onclick="openFilterModal()"
+                        class="px-3 py-1.5 border rounded-lg flex items-center gap-1.5 {{ $filterCount > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'border-gray-300 hover:bg-gray-50' }}">
+                        <i class="bi {{ $filterCount > 0 ? 'bi-funnel-fill' : 'bi-funnel' }}"></i>
                         <span class="ml-1">Filter</span>
                         @if ($filterCount > 0)
                             <span
@@ -172,8 +174,13 @@
                                         class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                         <i class="bi bi-collection text-3xl text-gray-400"></i>
                                     </div>
-                                    <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada data kelas</h3>
-                                    <p class="text-gray-500">Tambahkan data kelas untuk memulai.</p>
+                                    @if ($filterCount > 0 || request('search'))
+                                        <h3 class="text-lg font-medium text-gray-900 mb-2">Tidak ada kelas yang cocok</h3>
+                                        <p class="text-gray-500">Ubah kata kunci atau filter yang dipakai.</p>
+                                    @else
+                                        <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada data kelas</h3>
+                                        <p class="text-gray-500">Tambahkan data kelas untuk memulai.</p>
+                                    @endif
                                 </td>
                             </tr>
                         @endforelse
@@ -416,14 +423,20 @@
                     const query = input.value.trim();
 
                     if (query.length === 0) {
-                        // User hapus search → kembali ke page terakhir
-                        fetchData(lastPageUrl);
+                        // User hapus search → kembali ke daftar sebelum dicari (filter tetap dipakai)
+                        const params = new URLSearchParams(window.location.search);
+                        params.delete('search');
+                        params.delete('page');
+                        const qs = params.toString();
+                        fetchData(window.location.pathname + (qs ? '?' + qs : ''));
                         return;
                     }
 
-                    // Search selalu mulai dari page 1
-                    const url = `/kelas?search=${encodeURIComponent(query)}`;
-                    fetchData(url);
+                    // Search selalu mulai dari page 1, filter & urutan yang aktif tetap dipakai.
+                    const params = new URLSearchParams(window.location.search);
+                    params.delete('page');
+                    params.set('search', query);
+                    fetchData(`${window.location.pathname}?${params.toString()}`);
 
                 }, 200);
             });
