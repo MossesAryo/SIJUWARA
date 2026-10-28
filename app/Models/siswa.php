@@ -55,4 +55,10 @@ class siswa extends Model
     {
         return $this->belongsTo(jurusan::class, 'id_jurusan', 'id_jurusan');
     }
+    public function classHistories()
+    {
+        return $this->hasMany(StudentClassHistory::class, 'nis', 'nis')
+            ->orderBy('tanggal_mulai', 'desc')
+            ->orderBy('id', 'desc');
+    }
 }

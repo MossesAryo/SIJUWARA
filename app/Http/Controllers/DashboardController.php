@@ -117,11 +117,15 @@ class DashboardController extends Controller
         $siswaBerprestasi    = StatistikSiswa::berprestasi($siswaQuery);
         $siswaBerpelanggaran = StatistikSiswa::berpelanggaran($siswaQuery);
 
-        // Aktivitas terbaru sesuai cakupan role.
+        // Aktivitas SKORING terbaru sesuai cakupan role. Hanya log apresiasi / pelanggaran milik siswa;
+        // log sistem (ganti tahun ajaran, perpindahan kelas, rencana Kaprog, akun, data master) tidak ikut
+        // karena deskripsinya panjang dan bukan aktivitas skoring.
         $recentActivities = ActivityLog::with([
             'user',
             'siswa.kelas',
         ])
+            ->whereIn('kategori', [ActivityLog::KATEGORI_APRESIASI, ActivityLog::KATEGORI_PELANGGARAN])
+            ->whereNotNull('nis')
             ->when($jurusanFilter, function ($q) use ($jurusanFilter) {
                 $q->whereHas('siswa', function ($sub) use ($jurusanFilter) {
                     $sub->where(

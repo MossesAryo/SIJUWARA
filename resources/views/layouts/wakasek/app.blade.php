@@ -1,4 +1,4 @@
-    <!DOCTYPE html>
+<!DOCTYPE html>
 
     @push('css')
         <style>
@@ -36,7 +36,8 @@
             @include('layouts.wakasek.sidebar')
 
             <!-- Main Content -->
-            <div class="flex-1 ml-64">
+            {{-- min-w-0: tanpa ini teks panjang tak terpotong (mis. log ganti tahun) melebarkan halaman dan merusak tata letak --}}
+            <div class="flex-1 min-w-0 ml-64">
                 <!-- Top Navigation -->
                 @include('layouts.wakasek.navbar')
 

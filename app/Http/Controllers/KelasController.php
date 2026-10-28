@@ -10,6 +10,7 @@ use App\Models\walikelas;
 use Illuminate\Http\Request;
 use App\Models\ketua_program;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -27,7 +28,8 @@ class KelasController extends Controller
         $jurusanList = jurusan::all();
 
         // siswa_count = jumlah siswa AKTIF di kelas (siswa arsip tidak dihitung).
-        $query       = kelas::with('jurusan')
+        // walikelas dimuat sekalian supaya nama wali tampil di tabel tanpa query per baris.
+        $query       = kelas::with(['jurusan', 'walikelas'])
                         ->withCount(['siswa' => fn ($q) => $q->where('status', 'aktif')])
                         ->where('nama_kelas', '!=', 'Alumni');
         if ($user) {
@@ -88,6 +90,10 @@ class KelasController extends Controller
                   ->orWhere('id_kelas', 'like', "%$search%")
                   ->orWhereHas('jurusan', function ($q) use ($search) {
                       $q->where('nama_jurusan', 'like', "%$search%");
+                  })
+                  // Cari juga berdasarkan nama walikelas
+                  ->orWhereHas('walikelas', function ($q) use ($search) {
+                      $q->where('nama_walikelas', 'like', "%$search%");
                   });
             });
         }
@@ -136,7 +142,15 @@ class KelasController extends Controller
 
         $kelas = $query->paginate(10)->appends($request->all());
 
-        return view('wakasek.kelas.kelas', compact('kelas', 'jurusanList'));
+        // Daftar guru untuk pilihan walikelas (hanya Wakasek yang boleh mengubah).
+        $guruList = collect();
+        if ($user && $user->role == '1') {
+            $guruList = walikelas::with('kelas:id_kelas,nama_kelas')
+                ->orderBy('nama_walikelas')
+                ->get(['nip_walikelas', 'nama_walikelas', 'id_kelas']);
+        }
+
+        return view('wakasek.kelas.kelas', compact('kelas', 'jurusanList', 'guruList'));
     }
 
     /**
@@ -303,6 +317,59 @@ class KelasController extends Controller
             return redirect()->back()->withInput()
                 ->with('error', collect($e->errors())->flatten()->first());
         } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Terjadi kesalahan');
+        }
+    }
+
+    /**
+     * Atur walikelas satu kelas langsung dari halaman Kelas.
+     * nip_walikelas kosong = lepas walikelas kelas ini.
+     * Guru yang dipilih dan masih memegang kelas lain otomatis dipindahkan ke kelas ini.
+     */
+    public function updateWalikelas(Request $request, string $id)
+    {
+        $kelas = kelas::where('id_kelas', $id)->firstOrFail();
+
+        $data = $request->validate([
+            'nip_walikelas' => ['nullable', Rule::exists('walikelas', 'nip_walikelas')],
+        ], [
+            'nip_walikelas.exists' => 'Guru yang dipilih tidak ditemukan.',
+        ]);
+
+        try {
+            // Tanpa pilihan: lepas wali yang sekarang
+            if (empty($data['nip_walikelas'])) {
+                $lama = walikelas::where('id_kelas', $kelas->id_kelas)->first();
+
+                if (!$lama) {
+                    return redirect()->back()->with('success', "Kelas {$kelas->nama_kelas} memang belum punya walikelas.");
+                }
+
+                walikelas::where('nip_walikelas', $lama->nip_walikelas)->update(['id_kelas' => null]);
+
+                return redirect()->back()
+                    ->with('success', "{$lama->nama_walikelas} dilepas dari walikelas {$kelas->nama_kelas}.");
+            }
+
+            $guru = walikelas::where('nip_walikelas', $data['nip_walikelas'])->firstOrFail();
+            $kelasAsal = $guru->id_kelas && $guru->id_kelas !== $kelas->id_kelas
+                ? optional(kelas::where('id_kelas', $guru->id_kelas)->first())->nama_kelas
+                : null;
+
+            $digantikan = WalikelasController::pasangkanKelas((string) $guru->nip_walikelas, $kelas->id_kelas);
+
+            $pesan = "{$guru->nama_walikelas} sekarang menjadi walikelas {$kelas->nama_kelas}.";
+            if ($digantikan) {
+                $pesan .= " {$digantikan} dilepas dari kelas ini.";
+            }
+            if ($kelasAsal) {
+                $pesan .= " ({$guru->nama_walikelas} dipindahkan dari {$kelasAsal}, kelas itu sekarang belum punya wali.)";
+            }
+
+            return redirect()->back()->with('success', $pesan);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Atur walikelas gagal: ' . $e->getMessage());
+
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
     }

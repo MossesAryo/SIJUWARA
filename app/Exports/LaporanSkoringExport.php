@@ -7,6 +7,7 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Carbon\Carbon;
+use App\Support\KelasSaatKejadian;
 
 class LaporanSkoringExport implements FromCollection, WithHeadings, WithMapping
 {
@@ -51,7 +52,12 @@ class LaporanSkoringExport implements FromCollection, WithHeadings, WithMapping
             ]);
         }
 
-        return $query->get();
+        $data = $query->get();
+
+        // Kolom Kelas = kelas siswa saat kejadian (Riwayat Kelas), bukan kelas sekarang.
+        KelasSaatKejadian::muatDari($data);
+
+        return $data;
     }
 
     public function headings(): array
@@ -71,7 +77,7 @@ class LaporanSkoringExport implements FromCollection, WithHeadings, WithMapping
         return [
             $item->siswa->nis ?? '-',
             $item->siswa->nama_siswa ?? '-',
-            $item->siswa->kelas->nama_kelas ?? '-',
+            KelasSaatKejadian::nama($item->nis, $item->created_at),
             $item->aspek_penilaian->kategori ?? '-',
             $item->aspek_penilaian->indikator_poin ?? 0,
             Carbon::parse($item->created_at)->format('Y-m-d'),

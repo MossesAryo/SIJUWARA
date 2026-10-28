@@ -28,12 +28,13 @@
             </tr>
         </thead>
         <tbody>
+            @php \App\Support\KelasSaatKejadian::muatDari($intervensi); @endphp
             @foreach($intervensi as $i => $item)
                 <tr>
                     <td>{{ $i + 1 }}</td>
                     <td>{{ $item->nis }}</td>
                     <td>{{ $item->siswa->nama_siswa ?? '-' }}</td>
-                    <td>{{ $item->siswa->kelas->nama_kelas ?? '-' }}</td>
+                    <td>{{ \App\Support\KelasSaatKejadian::nama($item->nis, $item->created_at) }}</td>
                     <td>{{ $item->nama_intervensi }}</td>
                     <td>{{ $item->isi_intervensi }}</td>
                     <td>{{ $item->status }}</td>

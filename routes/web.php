@@ -28,6 +28,7 @@ use App\Http\Controllers\Skoring_PelanggaranController;
 use App\Http\Controllers\Skoring_PenghargaanController;
 use App\Http\Controllers\StatusIntervensiController;
 use App\Http\Controllers\SuperAdmin\ActivityLogController;
+use App\Http\Controllers\SuperAdmin\BackupController;
 use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
 use App\Http\Controllers\SuperAdmin\JurusanController as SuperAdminJurusanController;
 use App\Http\Controllers\SuperAdmin\MonitoringController;
@@ -177,6 +178,11 @@ Route::middleware(['auth'])->group(function () {
         ->name('kelas.siswa');
     Route::post('/kelas/store', [KelasController::class, 'store'])->name('kelas.store');
     Route::put('/kelas/{id}/update', [KelasController::class, 'update'])->name('kelas.update');
+    // Atur walikelas langsung dari halaman Kelas (Wakasek & Super Admin)
+    Route::put('/kelas/{id}/walikelas', [KelasController::class, 'updateWalikelas'])
+        ->where('id', '[A-Za-z0-9\-]+')
+        ->middleware('UserAccess:1,5')
+        ->name('kelas.walikelas');
     Route::delete('/kelas/{id}', [KelasController::class, 'destroy'])->name('kelas.destroy');
 
     // Guru BK
@@ -226,6 +232,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tahun-ajaran/update', [TahunAjaranController::class, 'update'])
         ->middleware('UserAccess:1,5')
         ->name('tahun_ajaran.update');
+    Route::post('/tahun-ajaran/tandai-mengulang', [TahunAjaranController::class, 'tandaiMengulang'])
+        ->middleware('UserAccess:1,5')
+        ->name('tahun_ajaran.tandai_mengulang');
     Route::post('/tahun-ajaran/kelas-tujuan', [KelasTujuanController::class, 'store'])
         ->middleware('UserAccess:1,5')
         ->name('tahun_ajaran.kelas_tujuan');
@@ -277,6 +286,18 @@ Route::middleware(['auth', 'UserAccess:5'])
         Route::delete('/siswa-arsip/{nis}', [SiswaArsipController::class, 'forceDelete'])
             ->whereNumber('nis')
             ->name('siswa-arsip.forceDelete');
+
+        // Data Backup (file Excel): lihat isi, unduh & pulihkan
+        Route::get('/backup', [BackupController::class, 'index'])->name('backup.index');
+        Route::get('/backup/{nama}', [BackupController::class, 'show'])
+            ->where('nama', '[A-Za-z0-9._-]+\.xlsx')
+            ->name('backup.show');
+        Route::get('/backup/{nama}/unduh', [BackupController::class, 'download'])
+            ->where('nama', '[A-Za-z0-9._-]+\.xlsx')
+            ->name('backup.unduh');
+        Route::post('/backup/{nama}/pulihkan', [BackupController::class, 'pulihkan'])
+            ->where('nama', '[A-Za-z0-9._-]+\.xlsx')
+            ->name('backup.pulihkan');
 
         // Pemantauan lintas role
         Route::get('/pemantauan', [MonitoringController::class, 'index'])

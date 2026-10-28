@@ -194,11 +194,17 @@
                     </thead>
 
                     <tbody id="tableBody" class="bg-white divide-y divide-gray-100">
+                        @php \App\Support\KelasSaatKejadian::muatDari($penilaian); @endphp
                         @forelse ($penilaian as $item)
                             <tr>
                                 <td class="px-6 py-4 text-sm text-gray-900">{{ $loop->iteration + ($penilaian->currentPage() - 1) * $penilaian->perPage() }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-900">{{ $item->siswa->nis ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-900">{{ $item->siswa->nama_siswa ?? '-' }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-900">
+                                    {{ $item->siswa->nama_siswa ?? '-' }}
+                                    <p class="text-xs text-indigo-700 mt-0.5" title="Kelas siswa saat kejadian ini">
+                                    <i class="bi bi-collection"></i> {{ \App\Support\KelasSaatKejadian::label($item->nis, $item->created_at) }}
+                                </p>
+                                </td>
                                 <td class="px-6 py-4 text-sm text-gray-900">{{ $item->created_at }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-900">{{ $item->aspek_penilaian->uraian ?? '-' }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-900">{{ $item->aspek_penilaian->indikator_poin ?? 0 }}</td>

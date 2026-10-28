@@ -86,13 +86,17 @@
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="bg-white divide-y divide-gray-100">
+                    @php \App\Support\KelasSaatKejadian::muatDari($intervensi); @endphp
                     @forelse($intervensi as $item)
                         <tr class="hover:bg-blue-50 transition">
                             <td class="px-6 py-4 text-sm font-medium text-gray-900">
                                 {{ $loop->iteration + ($intervensi->currentPage()-1)*$intervensi->perPage() }}
                             </td>
                             <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $item->siswa->nama_siswa }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-700">{{ $item->siswa->kelas->nama_kelas ?? 'N/A' }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-700" title="Kelas siswa saat penanganan ini dibuat">
+                                {{ \App\Support\KelasSaatKejadian::nama($item->nis, $item->created_at) }}
+                                <span class="block text-xs text-gray-400">TA {{ \App\Support\KelasSaatKejadian::pada($item->nis, $item->created_at)['tahun_ajaran'] ?? '-' }}</span>
+                            </td>
                             <td class="px-6 py-4 text-sm text-gray-700">
                                 {{ \Carbon\Carbon::parse($item->tanggal_Mulai_Perbaikan)->format('d M Y') }}
                             </td>

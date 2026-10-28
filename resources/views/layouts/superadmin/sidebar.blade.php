@@ -5,6 +5,7 @@
         ['label' => 'Manajemen Keahlian', 'icon' => 'bi-mortarboard',   'route' => 'superadmin.jurusan.index',     'active' => 'superadmin.jurusan.*'],
         ['label' => 'Pemantauan Role',   'icon' => 'bi-activity',      'route' => 'superadmin.pemantauan.index',  'active' => 'superadmin.pemantauan.*'],
         ['label' => 'Arsip Siswa', 'icon' => 'bi-archive',       'route' => 'superadmin.siswa-arsip.index', 'active' => 'superadmin.siswa-arsip.*'],
+        ['label' => 'Data Backup',       'icon' => 'bi-hdd-stack',     'route' => 'superadmin.backup.index',      'active' => 'superadmin.backup.*'],
         ['label' => 'Log Aktivitas',     'icon' => 'bi-clock-history', 'route' => 'superadmin.log.index',         'active' => 'superadmin.log.*'],
     ];
 @endphp
