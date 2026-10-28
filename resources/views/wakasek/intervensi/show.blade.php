@@ -83,8 +83,11 @@
                         <p class="text-xs text-gray-400 mt-0.5">NIS: {{ $intervensi->nis }}</p>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Kelas</p>
-                        <p class="text-sm font-semibold text-gray-800">{{ $intervensi->siswa->kelas->nama_kelas ?? '-' }}</p>
+                        <p class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Kelas saat penanganan</p>
+                        <p class="text-sm font-semibold text-gray-800">{{ \App\Support\KelasSaatKejadian::label($intervensi->nis, $intervensi->created_at) }}</p>
+                        @if (($intervensi->siswa->id_kelas ?? null) && $intervensi->siswa->id_kelas !== \App\Support\KelasSaatKejadian::pada($intervensi->nis, $intervensi->created_at)['id_kelas'])
+                            <p class="text-xs text-gray-400 mt-0.5">Kelas sekarang: {{ $intervensi->siswa->kelas->nama_kelas ?? '-' }}</p>
+                        @endif
                         <p class="text-xs text-gray-400 mt-0.5">{{ $intervensi->siswa->jurusan->nama_jurusan ?? '-' }}</p>
                     </div>
                 </div>

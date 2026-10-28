@@ -121,6 +121,7 @@
             <span class="text-xs text-gray-400">{{ $recentActivities->count() }} aktivitas</span>
         </div>
 
+        @php \App\Support\KelasSaatKejadian::muatDari($recentActivities); @endphp
         @forelse ($recentActivities as $log)
             <div class="flex items-center gap-4 px-6 py-4 border-b border-gray-50 hover:bg-gray-50 transition-all">
 
@@ -137,10 +138,10 @@
                             {{ Str::upper($log->siswa?->nama_siswa ?? $log->nis) }}
                         </p>
                         <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">
-                            Kelas {{ Str::upper($log->siswa?->kelas?->nama_kelas ?? '—') }}
+                            Kelas {{ Str::upper(\App\Support\KelasSaatKejadian::nama($log->nis, $log->created_at)) }}
                         </span>
                     </div>
-                    <p class="text-sm text-gray-500 mt-0.5 truncate italic">"{{ $log->description }}"</p>
+                    <p class="text-sm text-gray-500 mt-0.5 truncate italic" title="{{ $log->description }}">"{{ Str::limit($log->description, 160) }}"</p>
                 </div>
 
                 {{-- Right side --}}

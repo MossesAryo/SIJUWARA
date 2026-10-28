@@ -33,9 +33,15 @@
                     <select class="form-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" id="edit_id_kelas" name="id_kelas">
                         <option value="">Tanpa Kelas</option>
                         @foreach ($kelas as $k)
-                            <option value="{{ $k->id_kelas }}">{{ $k->nama_kelas }}</option>
+                            <option value="{{ $k->id_kelas }}"
+                                data-wali-nip="{{ optional($k->walikelas)->nip_walikelas }}"
+                                data-wali-nama="{{ optional($k->walikelas)->nama_walikelas }}">
+                                {{ $k->nama_kelas }}{{ $k->walikelas ? ' — wali: ' . $k->walikelas->nama_walikelas : '' }}
+                            </option>
                         @endforeach
                     </select>
+                    <p id="edit_kelas_info"
+                        class="hidden mt-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2"></p>
                 </div>
             </div>
             <div class="flex justify-end gap-2 pt-4">

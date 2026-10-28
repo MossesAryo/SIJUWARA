@@ -46,7 +46,7 @@
 
                 <div class="w-full md:w-64 relative">
                     <i class="bi bi-search absolute left-3 top-2.5 text-gray-400"></i>
-                    <input type="text" name="search" id="inputSearch" placeholder="Cari Kelas..." value="{{ request('search') }}"
+                    <input type="text" name="search" id="inputSearch" placeholder="Cari Kelas / Walikelas..." value="{{ request('search') }}"
                         class="pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg w-full">
                 </div>
                 <div class="flex gap-2">
@@ -104,6 +104,12 @@
                             </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2">
+                                    <i class="bi bi-person-badge text-gray-400"></i>
+                                    Walikelas
+                                </div>
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                <div class="flex items-center gap-2">
                                     <i class="bi bi-people text-gray-400"></i>
                                     Jumlah Siswa
                                 </div>
@@ -139,6 +145,50 @@
                                     <div class="text-sm font-semibold text-gray-900">{{ $item->nama_kelas }}</div>
                                 </td>
                                 <td class="px-6 py-4">
+                                    @php
+                                        $wali = $item->walikelas && $item->walikelas->nama_walikelas ? $item->walikelas : null;
+                                        $bisaAturWali = auth()->user()->role == 1;
+                                    @endphp
+
+                                    @if ($bisaAturWali)
+                                        <button type="button"
+                                            data-id="{{ $item->id_kelas }}"
+                                            data-nama="{{ $item->nama_kelas }}"
+                                            data-nip="{{ $wali->nip_walikelas ?? '' }}"
+                                            onclick="openWaliModal(this)"
+                                            class="wali-btn group/wali text-left rounded-lg px-2 py-1 -mx-2 -my-1 hover:bg-blue-50 transition-colors"
+                                            title="Klik untuk mengganti walikelas {{ $item->nama_kelas }}">
+                                    @endif
+
+                                    @if ($wali)
+                                        <div class="flex items-center gap-2">
+                                            <div
+                                                class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                                {{ strtoupper(mb_substr($wali->nama_walikelas, 0, 1)) }}
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-gray-900">
+                                                    {{ $wali->nama_walikelas }}</div>
+                                                <div class="text-xs text-gray-500">NIP
+                                                    {{ $wali->nip_walikelas }}</div>
+                                            </div>
+                                            @if ($bisaAturWali)
+                                                <i class="bi bi-pencil text-xs text-blue-500 opacity-0 group-hover/wali:opacity-100 transition-opacity"></i>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <span
+                                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium {{ $bisaAturWali ? 'group-hover/wali:bg-blue-100 group-hover/wali:text-blue-700' : '' }}">
+                                            <i class="bi {{ $bisaAturWali ? 'bi-person-plus' : 'bi-person-x' }}"></i>
+                                            {{ $bisaAturWali ? 'Pilih wali' : 'Belum ada wali' }}
+                                        </span>
+                                    @endif
+
+                                    @if ($bisaAturWali)
+                                        </button>
+                                    @endif
+                                </td>
+                                <td class="px-6 py-4">
                                     <button type="button"
                                         onclick="openSiswaModal('{{ $item->id_kelas }}', '{{ $item->nama_kelas }}')"
                                         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm font-semibold transition-colors"
@@ -169,7 +219,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-6 py-12 text-center">
+                                <td colspan="6" class="px-6 py-12 text-center">
                                     <div
                                         class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                         <i class="bi bi-collection text-3xl text-gray-400"></i>
@@ -196,12 +246,23 @@
 
     @include('wakasek.kelas.create')
     @include('wakasek.kelas.edit')
+    @if (auth()->user()->role == 1)
+        @include('wakasek.kelas.walikelas')
+    @endif
     @include('wakasek.kelas.delete')
     @include('wakasek.kelas.modalFilter')
     @include('wakasek.kelas.siswa')
 @endsection
 
 @push('js')
+    @php
+        $daftarGuruJs = $guruList->map(fn ($g) => [
+            'nip'        => (string) $g->nip_walikelas,
+            'nama'       => $g->nama_walikelas,
+            'id_kelas'   => $g->id_kelas,
+            'nama_kelas' => optional($g->kelas)->nama_kelas,
+        ])->values();
+    @endphp
     <script>
         // ===== Mapping keahlian (sumber: App\Models\kelas) =====
         // Kelas 10 = Program Keahlian, kelas 11/12 = Konsentrasi Keahlian
@@ -300,6 +361,100 @@
 
             mdl.classList.remove('hidden');
         }
+
+        // ===== Modal Pilih Walikelas =====
+        // Data guru dari server: [{nip, nama, id_kelas, nama_kelas}]
+        const DAFTAR_GURU = @json($daftarGuruJs);
+
+        let waliKelasId = null;
+        let waliNipSekarang = '';
+
+        function openWaliModal(btn) {
+            const mdl = document.getElementById('modal-walikelas');
+            if (!mdl) return;
+
+            waliKelasId = btn.dataset.id;
+            waliNipSekarang = btn.dataset.nip || '';
+
+            document.getElementById('wali-nama-kelas').textContent = btn.dataset.nama;
+            document.getElementById('form-walikelas').action = `/kelas/${encodeURIComponent(waliKelasId)}/walikelas`;
+            document.getElementById('wali-cari').value = '';
+
+            renderDaftarGuru(waliNipSekarang);
+            mdl.classList.remove('hidden');
+            document.getElementById('wali-cari').focus();
+        }
+
+        function renderDaftarGuru(pilihNip) {
+            const box = document.getElementById('wali-daftar');
+            const kunci = (document.getElementById('wali-cari').value || '').toLowerCase().trim();
+            box.innerHTML = '';
+
+            const item = (nip, judul, sub, ikon) => {
+                const label = document.createElement('label');
+                label.className = 'wali-item flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border border-transparent hover:bg-gray-50';
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = 'nip_walikelas';
+                radio.value = nip;
+                radio.className = 'w-4 h-4 text-blue-600';
+                radio.checked = String(nip) === String(pilihNip);
+                radio.addEventListener('change', () => perbaruiPeringatan(nip));
+                const teks = document.createElement('div');
+                teks.className = 'min-w-0 flex-1';
+                const a = document.createElement('div');
+                a.className = 'text-sm font-semibold text-gray-900 truncate';
+                a.textContent = judul;
+                const b = document.createElement('div');
+                b.className = 'text-xs text-gray-500';
+                b.textContent = sub;
+                teks.append(a, b);
+                label.append(radio, teks);
+                return label;
+            };
+
+            // Pilihan lepas wali
+            box.appendChild(item('', 'Tanpa walikelas', 'Kosongkan walikelas kelas ini', ''));
+
+            DAFTAR_GURU
+                .filter(g => !kunci || g.nama.toLowerCase().includes(kunci) || g.nip.includes(kunci))
+                .forEach(g => {
+                    const sub = `NIP ${g.nip} \u2022 ` + (g.id_kelas
+                        ? (g.id_kelas === waliKelasId ? 'Wali kelas ini' : `Wali ${g.nama_kelas || g.id_kelas}`)
+                        : 'Belum punya kelas');
+                    box.appendChild(item(g.nip, g.nama, sub, ''));
+                });
+
+            if (!box.querySelector('input[type=radio]:checked')) {
+                box.querySelector('input[type=radio]').checked = true;
+            }
+            perbaruiPeringatan(box.querySelector('input[type=radio]:checked')?.value ?? '');
+        }
+
+        // Beri tahu dampak pilihan sebelum disimpan
+        function perbaruiPeringatan(nipDipilih) {
+            const warn = document.getElementById('wali-peringatan');
+            const pesan = [];
+            const guru = DAFTAR_GURU.find(g => g.nip === String(nipDipilih));
+            const waliLama = DAFTAR_GURU.find(g => g.id_kelas === waliKelasId);
+
+            if (guru && guru.id_kelas && guru.id_kelas !== waliKelasId) {
+                pesan.push(`${guru.nama} sekarang wali ${guru.nama_kelas || guru.id_kelas}; kelas itu akan jadi kosong.`);
+            }
+            if (waliLama && (!guru || waliLama.nip !== guru.nip)) {
+                pesan.push(`${waliLama.nama} akan dilepas dari kelas ini.`);
+            }
+
+            warn.textContent = pesan.join(' ');
+            warn.classList.toggle('hidden', pesan.length === 0);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('wali-cari')?.addEventListener('input', () => {
+                const dipilih = document.querySelector('#wali-daftar input[type=radio]:checked')?.value ?? waliNipSekarang;
+                renderDaftarGuru(dipilih);
+            });
+        });
 
         // ===== Modal Hapus =====
         function openDeleteModal(id, nama) {

@@ -190,6 +190,7 @@
                     </thead>
 
                     <tbody id="tableBody" class="bg-white divide-y divide-gray-100">
+                        @php \App\Support\KelasSaatKejadian::muatDari($penilaian); @endphp
                         @forelse ($penilaian as $item)
                             <tr>
                                 <td class="px-6 py-4 text-sm text-gray-900">
@@ -203,6 +204,9 @@
                                         </div>
                                         {{ $item->siswa->nama_siswa ?? '-' }}
                                     </div>
+                                    <p class="text-xs text-indigo-700 mt-0.5" title="Kelas siswa saat kejadian ini">
+                                    <i class="bi bi-collection"></i> {{ \App\Support\KelasSaatKejadian::label($item->nis, $item->created_at) }}
+                                </p>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-900">
                                     <span class="inline-flex items-center gap-1">

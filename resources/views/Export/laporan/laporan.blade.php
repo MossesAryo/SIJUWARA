@@ -39,11 +39,12 @@
             </tr>
         </thead>
         <tbody>
+            @php \App\Support\KelasSaatKejadian::muatDari($data); @endphp
             @forelse ($data as $item)
                 <tr>
                     <td>{{ $item->siswa->nis ?? '-' }}</td>
                     <td>{{ $item->siswa->nama_siswa ?? '-' }}</td>
-                    <td>{{ $item->siswa->kelas->nama_kelas ?? '-' }}</td>
+                    <td>{{ \App\Support\KelasSaatKejadian::nama($item->nis, $item->tanggal_pelanggaran ?? $item->created_at) }}</td>
                     <td>{{ $item->aspek_penilaian->kategori}}</td>
                     <td>{{ $item->aspek_penilaian->indikator_poin ?? '-' }}</td>
                     <td>{{ \Carbon\Carbon::parse($item->tanggal_pelanggaran ?? $item->created_at)->format('d-m-Y') }}</td>

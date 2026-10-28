@@ -123,6 +123,9 @@
                                                 {{ $item->penghargaan->alasan }} -
                                                 {{ $item->created_at->format('d M Y') }}
                                             </p>
+                                            <p class="text-xs text-indigo-700 mt-0.5" title="Kelas siswa saat penghargaan diberikan">
+                                                <i class="bi bi-collection"></i> {{ \App\Support\KelasSaatKejadian::label($item->nis, $item->created_at) }}
+                                            </p>
                                         </div>
                                     </button>
                                 </li>
@@ -160,6 +163,9 @@
                                             <p class="text-xs text-gray-500">
                                                 {{ $item->peringatan->alasan }} -
                                                 {{ $item->created_at->format('d M Y') }}
+                                            </p>
+                                            <p class="text-xs text-indigo-700 mt-0.5" title="Kelas siswa saat peringatan dijatuhkan">
+                                                <i class="bi bi-collection"></i> {{ \App\Support\KelasSaatKejadian::label($item->nis, $item->created_at) }}
                                             </p>
                                         </div>
                                     </button>
@@ -355,6 +361,9 @@
                                                         @endif
                                                     </p>
                                                     <p class="text-gray-500">{{ $int->created_at->format('d M Y') }}</p>
+                                                    <p class="text-xs text-indigo-700" title="Kelas siswa saat penanganan dibuat">
+                                                        <i class="bi bi-collection"></i> {{ \App\Support\KelasSaatKejadian::label($int->nis, $int->created_at) }}
+                                                    </p>
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -379,6 +388,126 @@
                     </div>
                 </div>
 
+
+                {{-- Riwayat Kelas Card --}}
+                <div class="bg-white rounded-xl shadow-sm border">
+                    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                            <i class="bi bi-clock-history text-purple-600"></i>
+                            Riwayat Kelas
+                        </h3>
+                    </div>
+                    @php
+                        // Catatan terbaru = tidak naik kelas -> siswa sedang mengulang di kelas yang sama.
+                        $catatanTerbaru = $siswa->classHistories ? $siswa->classHistories->first() : null;
+                        $sedangMengulang = $catatanTerbaru && $catatanTerbaru->jenis === \App\Models\StudentClassHistory::JENIS_TINGGAL_KELAS;
+                        // Catatan terbaru = belum diproses -> tertinggal karena belum direncanakan, BUKAN keputusan mengulang.
+                        $belumDiproses = $catatanTerbaru && $catatanTerbaru->jenis === \App\Models\StudentClassHistory::JENIS_BELUM_DIPROSES;
+                    @endphp
+
+                    @if ($belumDiproses)
+                        <div class="px-6 py-3 bg-amber-50 border-b border-amber-200 text-sm text-amber-800 flex gap-2">
+                            <i class="bi bi-hourglass-split mt-0.5"></i>
+                            <p>
+                                <strong>Belum diproses</strong>
+                                di {{ $catatanTerbaru->nama_kelas_sesudah }}@if ($catatanTerbaru->tahun_ajaran), tahun ajaran {{ $catatanTerbaru->tahun_ajaran }}@endif.
+                                Siswa ini tertinggal karena belum ada keputusan, bukan karena mengulang.
+                                {{ $catatanTerbaru->keterangan }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if ($sedangMengulang)
+                        <div class="px-6 py-3 bg-red-50 border-b border-red-200 text-sm text-red-800 flex gap-2">
+                            <i class="bi bi-arrow-repeat mt-0.5"></i>
+                            <p>
+                                <strong>Tidak naik kelas (mengulang)</strong>
+                                di {{ $catatanTerbaru->nama_kelas_sesudah }}@if ($catatanTerbaru->tahun_ajaran), tahun ajaran {{ $catatanTerbaru->tahun_ajaran }}@endif.
+                                Alasan: {{ $catatanTerbaru->alasan ?: '-' }}
+                            </p>
+                        </div>
+                    @endif
+
+                    <div class="overflow-x-auto">
+                        @if ($siswa->classHistories && $siswa->classHistories->count() > 0)
+                            <table class="w-full">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Status
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Dari Kelas
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Ke Kelas
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Tanggal Mulai
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Keterangan / Alasan
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    @foreach ($siswa->classHistories as $history)
+                                        @php
+                                            $badgeRiwayat = match ($history->jenis) {
+                                                'tinggal_kelas'  => ['bg-red-100 text-red-800', 'Tidak naik (mengulang)'],
+                                                'belum_diproses' => ['bg-amber-100 text-amber-800', 'Belum diproses'],
+                                                'naik'          => ['bg-green-100 text-green-800', 'Naik kelas'],
+                                                'turun'         => ['bg-yellow-100 text-yellow-800', 'Turun kelas'],
+                                                'lulus'         => ['bg-blue-100 text-blue-800', 'Lulus'],
+                                                default         => ['bg-gray-100 text-gray-700', 'Pindah kelas'],
+                                            };
+                                        @endphp
+                                        <tr class="hover:bg-gray-50 {{ $history->jenis === 'tinggal_kelas' ? 'bg-red-50/40' : ($history->jenis === 'belum_diproses' ? 'bg-amber-50/40' : '') }}">
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $badgeRiwayat[0] }}">{{ $badgeRiwayat[1] }}</span>
+                                                @if ($history->tahun_ajaran)
+                                                    <p class="text-xs text-gray-500 mt-1">TA {{ $history->tahun_ajaran }}</p>
+                                                @endif
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-sm text-gray-900">
+                                                    <p class="font-medium">{{ $history->nama_kelas_sebelum ?? '-' }}</p>
+                                                    <p class="text-xs text-gray-500">{{ $history->id_kelas_sebelum ?? '-' }}</p>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-sm text-gray-900">
+                                                    <p class="font-medium text-green-700">{{ $history->nama_kelas_sesudah ?? '-' }}</p>
+                                                    <p class="text-xs text-gray-500">{{ $history->id_kelas_sesudah ?? '-' }}</p>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-sm text-gray-900">
+                                                    {{ $history->tanggal_mulai ? \Carbon\Carbon::parse($history->tanggal_mulai)->format('d M Y') : '-' }}
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <div class="text-sm text-gray-900">
+                                                    {{ $history->keterangan ?? '-' }}
+                                                </div>
+                                                @if ($history->alasan)
+                                                    <div class="text-sm text-red-700 mt-1">
+                                                        <span class="font-semibold">Alasan:</span> {{ $history->alasan }}
+                                                    </div>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        @else
+                            <div class="py-8 text-center text-gray-500">
+                                <i class="bi bi-calendar-x text-gray-400 text-4xl mb-3"></i>
+                                <p class="text-sm">Belum ada riwayat perubahan kelas</p>
+                            </div>
+                        @endif
+                    </div>
+                </div>
 
                 {{-- Recent Activities Card --}}
                 <div class="bg-white rounded-xl shadow-sm border">
@@ -424,6 +553,7 @@
                                             </p>
                                             <p class="text-xs text-gray-500">
                                                 {{ $activity->created_at->format('d M Y') }}
+                                                · <span class="text-indigo-700" title="Kelas siswa saat kejadian">{{ \App\Support\KelasSaatKejadian::label($siswa->nis, $activity->created_at) }}</span>
                                             </p>
                                         </div>
                                         <div class="ml-4">

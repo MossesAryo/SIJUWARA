@@ -1,4 +1,11 @@
 @extends('layouts.wakasek.app')
+@php
+    // Kelas siswa PADA SAAT catatan dibuat (dari Riwayat Kelas), bukan kelas sekarang.
+    \App\Support\KelasSaatKejadian::muatDari($catatans);
+    $kelasCatatan = collect($catatans->items())->mapWithKeys(fn ($c) => [
+        $c->id => \App\Support\KelasSaatKejadian::label($c->nis, $c->created_at),
+    ]);
+@endphp
 @section('content')
     <div class="w-full px-4 py-6 lg:px-8">
         <div class="max-w-7xl mx-auto">
@@ -41,6 +48,9 @@
                                     <p class="text-xs text-gray-500 md:hidden mb-1">Nama Siswa</p>
                                     <p class="font-semibold text-gray-900">{{ $catatan->siswa->nama_siswa ?? 'N/A' }}</p>
                                     <p class="text-gray-500 text-xs">NIS: {{ $catatan->siswa->nis ?? '-' }}</p>
+                                    <p class="text-xs text-indigo-700 mt-0.5" title="Kelas siswa saat catatan ini dibuat">
+                                        <i class="bi bi-collection"></i> {{ $kelasCatatan[$catatan->id] ?? '-' }}
+                                    </p>
                                 </div>
 
                                 <!-- Title -->
@@ -293,6 +303,7 @@
     <script>
         // Catatan data
         const catatanData = @json($catatans->items());
+        const kelasSaatKejadian = @json($kelasCatatan);
 
         // Show Detail Modal
         function showDetailModal(id) {
@@ -301,7 +312,8 @@
 
             // Siswa Info
             document.getElementById('detail_siswa_nama').textContent = catatan.siswa.nama_siswa || 'N/A';
-            document.getElementById('detail_siswa_nis').textContent = 'NIS: ' + (catatan.siswa.nis || '-');
+            document.getElementById('detail_siswa_nis').textContent = 'NIS: ' + (catatan.siswa.nis || '-')
+                + ' · Kelas saat itu: ' + (kelasSaatKejadian[catatan.id] || '-');
 
             // Pengirim Info
             let pengirimNama = 'N/A';

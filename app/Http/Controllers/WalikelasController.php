@@ -29,7 +29,8 @@ class WalikelasController extends Controller
      */
     public function index(Request $request)
     {
-        $kelas = kelas::all();
+        // walikelas dimuat supaya form edit bisa menandai kelas yang sudah punya wali
+        $kelas = kelas::with('walikelas')->get();
 
         $query = walikelas::with('kelas');
 
@@ -139,6 +140,37 @@ class WalikelasController extends Controller
             ->with('success', 'Data walikelas berhasil ditambahkan. Login dengan NIP, password awal: ' . AkunStaf::PASSWORD_DEFAULT);
     }
 
+
+    /**
+     * Pasangkan seorang wali dengan kelas (atau lepas kelasnya kalau $idKelas null).
+     * Satu kelas hanya boleh punya satu wali: wali lama di kelas itu dilepas (id_kelas = NULL).
+     * Dipakai form edit di menu Guru dan pilihan wali di halaman Kelas.
+     *
+     * @return string|null nama wali lama yang digantikan, atau null kalau tidak ada
+     */
+    public static function pasangkanKelas(string $nip, ?string $idKelas): ?string
+    {
+        $digantikan = null;
+
+        DB::transaction(function () use ($nip, $idKelas, &$digantikan) {
+            if ($idKelas) {
+                $lama = walikelas::where('id_kelas', $idKelas)
+                    ->where('nip_walikelas', '!=', $nip)
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($lama as $w) {
+                    $digantikan = $w->nama_walikelas;
+                    walikelas::where('nip_walikelas', $w->nip_walikelas)->update(['id_kelas' => null]);
+                }
+            }
+
+            walikelas::where('nip_walikelas', $nip)->update(['id_kelas' => $idKelas]);
+        });
+
+        return $digantikan;
+    }
+
     /**
      * Display the specified resource.
      */
@@ -157,31 +189,50 @@ class WalikelasController extends Controller
      */
     public function update(Request $request, $nip_walikelas, $username)
     {
-        try {
-            $request->validate([
-                'nip_walikelas' => 'required|integer',
-                'username' => 'required|string',
-                'id_kelas' => 'nullable|string',
-                'nama_walikelas' => 'required|string',
-            ]);
+        // Validasi di luar try/catch supaya pesan per kolom tampil, bukan "Terjadi kesalahan".
+        $data = $request->validate([
+            'nip_walikelas'  => 'required|integer',
+            'username'       => 'required|string',
+            'id_kelas'       => ['nullable', 'string', Rule::exists('kelas', 'id_kelas')],
+            'nama_walikelas' => 'required|string|max:255',
+        ], [
+            'id_kelas.exists' => 'Kelas yang dipilih tidak valid.',
+        ]);
 
+        try {
             $walikelas = Walikelas::where('nip_walikelas', $nip_walikelas)->firstOrFail();
             $user = User::where('username', $username)->first();
+            $idKelas = !empty($data['id_kelas']) ? $data['id_kelas'] : null;
 
-            $user->update([
-                'username' => $request->username,
-                'email' => $request->nama_walikelas . '@gmail.com',
-            ]);
+            $digantikan = null;
 
-            $walikelas->update([
-                'nip_walikelas' => $request->nip_walikelas,
-                'username' => $user->username, // Tetap gunakan username yang sudah ada
-                'nama_walikelas' => $request->nama_walikelas,
-                'id_kelas' => $request->filled('id_kelas') ? $request->id_kelas : null,
-            ]);
+            DB::transaction(function () use ($data, $walikelas, $user, $idKelas, &$digantikan) {
+                if ($user) {
+                    $user->update([
+                        'username' => $data['username'],
+                        'email'    => $data['nama_walikelas'] . '@gmail.com',
+                    ]);
+                }
 
-            return redirect()->route('walikelas.index')->with('success', 'Data berhasil diperbarui.');
+                $walikelas->update([
+                    'nip_walikelas'  => $data['nip_walikelas'],
+                    'username'       => $user->username ?? $walikelas->username,
+                    'nama_walikelas' => $data['nama_walikelas'],
+                ]);
+
+                // Kelas diatur terpisah: kalau sudah ada wali lain, wali itu dilepas.
+                $digantikan = self::pasangkanKelas((string) $data['nip_walikelas'], $idKelas);
+            });
+
+            $pesan = 'Data berhasil diperbarui.';
+            if ($digantikan) {
+                $pesan .= " {$digantikan} dilepas dari kelas tersebut karena kelas hanya boleh punya satu wali.";
+            }
+
+            return redirect()->route('walikelas.index')->with('success', $pesan);
         } catch (\Exception $e) {
+            Log::error('Update walikelas gagal: ' . $e->getMessage());
+
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
     }

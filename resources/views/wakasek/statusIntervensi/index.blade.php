@@ -20,6 +20,7 @@
 
                 <!-- Student Items -->
                 <div class="divide-y divide-gray-100">
+                    @php \App\Support\KelasSaatKejadian::muatDari($intervensi); @endphp
                     @forelse ($intervensi as $item)
                         <div class="p-4 sm:p-6 hover:bg-gray-50 transition-colors">
                             <div class="md:grid md:grid-cols-12 md:gap-4 md:items-center">
@@ -27,7 +28,7 @@
                                 <div class="col-span-4 mb-3 md:mb-0">
                                     <p class="text-xs text-gray-500 md:hidden mb-1">Nama Siswa</p>
                                     <p class="font-semibold text-gray-900">{{ $item->siswa->nama_siswa }}</p>
-                                    <p class="text-gray-500 text-sm">{{ $item->siswa->kelas->nama_kelas }}</p>
+                                    <p class="text-gray-500 text-sm" title="Kelas siswa saat penanganan dibuat">{{ \App\Support\KelasSaatKejadian::label($item->nis, $item->created_at) }}</p>
                                 </div>
 
                                 <!-- Intervention Name -->

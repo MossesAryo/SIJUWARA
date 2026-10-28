@@ -83,7 +83,7 @@
                                 </div>
                                 <p class="text-gray-900 font-medium mb-1">
                                     <strong>{{ $item->siswa->nama_siswa }}</strong> dari kelas
-                                    {{ $item->siswa->kelas->nama_kelas }}
+                                    {{ \App\Support\KelasSaatKejadian::label($item->nis, $item->created_at) }}
                                 </p>
                                 <p class="text-gray-600 text-sm mb-2">
                                     "{{ $item->isi_catatan }}"
