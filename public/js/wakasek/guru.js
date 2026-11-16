@@ -13,6 +13,10 @@ function closeModal(modalId) {
     document.body.classList.remove('modal-open');
 }
 
+function openFilterModal() {
+    openModal('modal-filter');
+}
+
 function openCreateModal() {
     document.getElementById('nip_guru').value = '';
     document.getElementById('nama_guru').value = '';
@@ -57,7 +61,7 @@ function openDeleteModal(btn) {
     openModal('modal-delete');
 }
 
-const MODAL_IDS = ['modal-create', 'modal-edit', 'modal-delete'];
+const MODAL_IDS = ['modal-create', 'modal-edit', 'modal-delete', 'modal-filter'];
 
 document.addEventListener('click', function (event) {
     MODAL_IDS.forEach(id => {
@@ -160,46 +164,105 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     fileInput.addEventListener('change', handleFileSelect);
 
-    /* ───── Pencarian + paginasi tanpa reload ───── */
+    /* ───── Pencarian + paginasi tanpa reload (filter & sortir tetap terbawa) ───── */
     const input = document.getElementById('inputSearch');
     const tableBody = document.getElementById('tableBody');
     const pagination = document.getElementById('pagination');
+    const filterSearch = document.getElementById('filterSearch');
     let debounceTimer = null;
-    let lastPageUrl = window.location.href;
+    let controller = null;
 
-    function fetchData(url) {
-        fetch(url)
-            .then(res => res.text())
+    // Supaya tombol "Terapkan" di filter tidak menghapus kata kunci pencarian
+    function sinkronFilter() {
+        if (filterSearch) {
+            filterSearch.value = input.value.trim();
+        }
+    }
+
+    // URL halaman sekarang (filter jabatan, sort, dir tetap terbawa), page dikembalikan ke 1
+    function urlPencarian(keyword) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('page');
+
+        if (keyword) {
+            url.searchParams.set('search', keyword);
+        } else {
+            url.searchParams.delete('search');
+        }
+
+        return url;
+    }
+
+    function muatData(url) {
+        // Batalkan request lama supaya hasil lama tidak menimpa hasil baru
+        if (controller) {
+            controller.abort();
+        }
+        const current = new AbortController();
+        controller = current;
+
+        tableBody.style.opacity = '0.5';
+
+        fetch(url.toString(), {
+            signal: current.signal,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error('HTTP ' + res.status);
+                }
+                return res.text();
+            })
             .then(html => {
                 const doc = new DOMParser().parseFromString(html, 'text/html');
-                tableBody.innerHTML = doc.querySelector('#tableBody').innerHTML;
-                pagination.innerHTML = doc.querySelector('#pagination').innerHTML;
-                activatePaginationLinks();
+                const newBody = doc.querySelector('#tableBody');
+                const newPagination = doc.querySelector('#pagination');
+
+                // Bukan halaman daftar (misalnya sesi habis dan dialihkan ke login)
+                if (!newBody || !newPagination) {
+                    window.location.href = url.toString();
+                    return;
+                }
+
+                tableBody.innerHTML = newBody.innerHTML;
+                pagination.innerHTML = newPagination.innerHTML;
+                window.history.replaceState(null, '', url.toString());
+                sinkronFilter();
             })
-            .catch(err => console.error('ERR:', err));
-    }
-
-    function activatePaginationLinks() {
-        document.querySelectorAll('#pagination a').forEach(link => {
-            link.addEventListener('click', function (e) {
-                e.preventDefault();
-                lastPageUrl = this.href;
-                fetchData(this.href);
+            .catch(err => {
+                if (err.name === 'AbortError') {
+                    return;
+                }
+                console.error('Gagal memuat data guru:', err);
+                window.location.href = url.toString();
+            })
+            .finally(() => {
+                if (controller === current) {
+                    tableBody.style.opacity = '';
+                }
             });
-        });
     }
 
-    activatePaginationLinks();
+    // Klik nomor halaman (delegasi, tetap jalan setelah isi pagination diganti)
+    pagination.addEventListener('click', event => {
+        const link = event.target.closest('a');
+        if (!link || !link.href) {
+            return;
+        }
 
-    input.addEventListener('keyup', function () {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            const query = input.value.trim();
-            if (query.length === 0) {
-                fetchData(lastPageUrl);
-                return;
-            }
-            fetchData(`/guru?search=${encodeURIComponent(query)}`);
-        }, 200);
+        event.preventDefault();
+        muatData(new URL(link.href));
     });
+
+    input.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        sinkronFilter();
+
+        debounceTimer = setTimeout(() => {
+            muatData(urlPencarian(input.value.trim()));
+        }, 300);
+    });
+
+    sinkronFilter();
 });

@@ -47,9 +47,56 @@ class GuruController extends Controller
             });
         }
 
-        $guru = $query->orderBy('nama_guru')
-            ->paginate(10)
-            ->appends($request->only(['search']));
+        // ───── Filter jabatan ─────
+        // Nilai: wakasek | gurubk | kaprog | walikelas | belum (belum dipetakan)
+        $jabatan = (string) $request->query('jabatan', '');
+        if ($jabatan === 'belum') {
+            $query->whereDoesntHave('wakasek')
+                  ->whereDoesntHave('gurubk')
+                  ->whereDoesntHave('kaprog')
+                  ->whereDoesntHave('walikelas');
+        } elseif (array_key_exists($jabatan, guru::DAFTAR_JABATAN)) {
+            $query->whereHas($jabatan);
+        } else {
+            $jabatan = '';
+        }
+
+        // ───── Sortir ─────
+        $sort = $request->query('sort');
+        if (!in_array($sort, ['nama', 'nip', 'jabatan'], true)) {
+            $sort = 'nama';
+        }
+        $dir = strtolower((string) $request->query('dir')) === 'desc' ? 'desc' : 'asc';
+
+        switch ($sort) {
+            case 'nip':
+                // Urut sebagai angka: panjang dulu, baru isi (NIP disimpan sebagai string).
+                $query->orderByRaw('LENGTH(nip_guru) ' . $dir)
+                      ->orderBy('nip_guru', $dir);
+                break;
+
+            case 'jabatan':
+                $rank = "CASE
+                    WHEN EXISTS (SELECT 1 FROM wakasek WHERE wakasek.nip_wakasek = guru.nip_guru) THEN 1
+                    WHEN EXISTS (SELECT 1 FROM guru_bk WHERE guru_bk.nip_bk = guru.nip_guru) THEN 2
+                    WHEN EXISTS (SELECT 1 FROM ketua_program WHERE ketua_program.nip_kaprog = guru.nip_guru) THEN 3
+                    WHEN EXISTS (SELECT 1 FROM walikelas WHERE walikelas.nip_walikelas = guru.nip_guru) THEN 4
+                    ELSE 5
+                END";
+                // "Belum dipetakan" selalu di paling bawah, baik asc maupun desc.
+                $query->orderByRaw("($rank) = 5 asc")
+                      ->orderByRaw("($rank) $dir")
+                      ->orderBy('nama_guru');
+                break;
+
+            default: // nama
+                $query->orderBy('nama_guru', $dir);
+                break;
+        }
+
+        // Pagination mempertahankan search, jabatan, sort, dan dir
+        $guru = $query->paginate(10)
+            ->appends($request->only(['search', 'jabatan', 'sort', 'dir']));
 
         return view('wakasek.guru.index', compact('guru'));
     }

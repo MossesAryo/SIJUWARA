@@ -66,6 +66,26 @@
                         class="pl-10 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full">
                 </div>
                 <div class="flex gap-2">
+                    @php
+                        // Hitung filter yang aktif (sortir bawaan Nama A-Z tidak dihitung)
+                        $filterCount = 0;
+                        if (request()->filled('jabatan')) {
+                            $filterCount++;
+                        }
+                        if (in_array(request('sort'), ['nip', 'jabatan'], true)
+                            || (request('sort') === 'nama' && request('dir') === 'desc')) {
+                            $filterCount++;
+                        }
+                    @endphp
+                    <button id="openFilterModal" type="button" onclick="openFilterModal()"
+                        class="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5">
+                        <i class="bi bi-funnel"></i> Filter
+                        @if ($filterCount > 0)
+                            <span
+                                class="ml-2 inline-flex items-center justify-center bg-blue-600 text-white text-xs font-semibold rounded-full w-6 h-6">{{ $filterCount }}</span>
+                        @endif
+                    </button>
+
                     <button id="exportImportBtn" type="button"
                         class="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5">
                         <i class="bi bi-download"></i> Export / Import
@@ -158,9 +178,9 @@
                                     <div class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                         <i class="bi bi-people text-3xl text-gray-400"></i>
                                     </div>
-                                    @if (request()->filled('search'))
+                                    @if (request()->filled('search') || request()->filled('jabatan'))
                                         <h3 class="text-lg font-medium text-gray-900 mb-2">Data guru tidak ditemukan</h3>
-                                        <p class="text-gray-500">Coba kata kunci yang lain.</p>
+                                        <p class="text-gray-500">Coba kata kunci atau filter yang lain.</p>
                                     @else
                                         <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada data Guru</h3>
                                         <p class="text-gray-500">Tambahkan atau import data guru untuk memulai.</p>
@@ -178,6 +198,7 @@
         </div>
     </div>
 
+    @include('wakasek.guru.filter')
     @include('wakasek.guru.modalExportImport')
     @include('wakasek.guru.create')
     @include('wakasek.guru.edit')
