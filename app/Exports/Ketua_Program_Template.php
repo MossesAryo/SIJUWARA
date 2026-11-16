@@ -17,8 +17,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *
  * Penting: Ketua_Program_Import memakai headingRow() = 2, jadi
  * baris 1 = judul, baris 2 = judul kolom, data mulai baris 3.
- * Judul kolom di-slug oleh Maatwebsite: nip, username,
- * nama_ketua_program, jurusan.
+ * Judul kolom di-slug oleh Maatwebsite: nip, jurusan.
+ * Nama diambil dari data guru, jadi tidak ada kolom nama.
  */
 class Ketua_Program_Template implements WithMultipleSheets
 {
@@ -35,12 +35,10 @@ class Ketua_Program_Template implements WithMultipleSheets
             new class implements FromArray, WithHeadings, WithTitle, WithStyles, ShouldAutoSize {
                 public function array(): array
                 {
-                    // Baris 3 = contoh. Nama/username diawali "CONTOH" supaya dilewati saat import.
+                    // Baris 3 = contoh. NIP diawali "CONTOH" supaya dilewati saat import.
                     return [
                         [
-                            '196501011990031001',
-                            'contoh.budi',
-                            'CONTOH - Budi Santoso, S.Pd',
+                            'CONTOH-196501011990031001',
                             'RPL',
                         ],
                     ];
@@ -50,7 +48,7 @@ class Ketua_Program_Template implements WithMultipleSheets
                 {
                     return [
                         ['Template Import Ketua Program'],
-                        ['NIP', 'Username', 'Nama Ketua Program', 'Jurusan'],
+                        ['NIP', 'Jurusan'],
                     ];
                 }
 
@@ -85,11 +83,11 @@ class Ketua_Program_Template implements WithMultipleSheets
                 private const PETUNJUK = [
                     'PETUNJUK PENGISIAN',
                     '1. Isi sheet "Data Ketua Program" mulai baris 3. Baris 1 dan 2 jangan diubah.',
-                    '2. NIP wajib diisi dan tidak boleh sama dengan ketua program lain.',
-                    '3. Username wajib diisi dan harus unik. Baris tanpa username dilewati.',
+                    '2. NIP wajib diisi dan harus sudah ada di menu Guru (tambah/import guru dulu). Nama diambil dari data guru.',
+                    '3. NIP tidak boleh sama dengan ketua program lain, wali kelas, guru BK, atau wakasek.',
                     '4. Kolom Jurusan diisi dengan Id Jurusan dari daftar di bawah (contoh: RPL).',
-                    '5. Akun login dibuat otomatis dari Username dengan password default.',
-                    '6. Baris contoh (nama diawali CONTOH) dilewati saat import. Boleh dihapus atau ditimpa.',
+                    '5. Akun login dibuat otomatis dari nama guru dengan password default.',
+                    '6. Baris contoh (NIP diawali CONTOH) dilewati saat import. Boleh dihapus atau ditimpa.',
                 ];
 
                 public function __construct($jurusan)

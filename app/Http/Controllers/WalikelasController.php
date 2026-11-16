@@ -199,6 +199,11 @@ class WalikelasController extends Controller
             'id_kelas.exists' => 'Kelas yang dipilih tidak valid.',
         ]);
 
+        if (AkunStaf::nipTerpakaiOlehLain($data['nip_walikelas'], $nip_walikelas)) {
+            return redirect()->back()->withInput()
+                ->withErrors(['nip_walikelas' => 'NIP sudah dipakai oleh pengguna lain.']);
+        }
+
         try {
             $walikelas = Walikelas::where('nip_walikelas', $nip_walikelas)->firstOrFail();
             $user = User::where('username', $username)->first();

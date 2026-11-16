@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Template import Guru.
+ * Template import Wali Kelas.
  *
  * Baris 1 = judul, baris 2 = judul kolom, data mulai baris 3.
  * Walikelas_Import mendeteksi header otomatis, jadi urutan kolom tidak kaku.
@@ -44,14 +44,14 @@ class Walikelas_Template implements WithMultipleSheets
                 public function headings(): array
                 {
                     return [
-                        ['Template Import Guru'],
-                        ['NIP', 'Nama Guru', 'Id Kelas', 'Username (opsional)'],
+                        ['Template Import Wali Kelas'],
+                        ['NIP', 'Nama Wali Kelas', 'Id Kelas', 'Username (opsional)'],
                     ];
                 }
 
                 public function title(): string
                 {
-                    return 'Data Guru';
+                    return 'Data Wali Kelas';
                 }
 
                 public function styles(Worksheet $sheet)
@@ -82,13 +82,13 @@ class Walikelas_Template implements WithMultipleSheets
 
                 private const PETUNJUK = [
                     'PETUNJUK PENGISIAN',
-                    '1. Isi sheet "Data Guru" mulai baris 3. Baris 1 dan 2 jangan diubah.',
-                    '2. NIP wajib diisi (angka) dan tidak boleh sama dengan guru lain. Kolom NIP sudah berformat Teks.',
-                    '3. Nama Guru wajib diisi.',
+                    '1. Isi sheet "Data Wali Kelas" mulai baris 3. Baris 1 dan 2 jangan diubah.',
+                    '2. NIP wajib diisi (angka) dan tidak boleh sama dengan wali kelas lain. Kolom NIP sudah berformat Teks.',
+                    '3. Nama Wali Kelas wajib diisi.',
                     '4. Id Kelas boleh dikosongkan. Kalau diisi, pakai Id Kelas dari daftar di bawah (contoh: 11-RPL-1). Nama kelas seperti "11 RPL 1" juga bisa.',
-                    '5. Untuk guru yang tidak memiliki kelas, isi Id Kelas dengan "Tanpa Kelas" atau biarkan kosong (guru baru).',
-                    '6. Untuk guru yang sudah ada: Id Kelas kosong = kelas tidak diubah, "Tanpa Kelas" = kelas dihapus.',
-                    '7. Username boleh dikosongkan. Kalau kosong, dipakai Nama Guru.',
+                    '5. Untuk wali kelas yang tidak memiliki kelas, isi Id Kelas dengan "Tanpa Kelas" atau biarkan kosong (wali baru).',
+                    '6. Untuk wali kelas yang sudah ada: Id Kelas kosong = kelas tidak diubah, "Tanpa Kelas" = kelas dihapus.',
+                    '7. Username boleh dikosongkan. Kalau kosong, dipakai Nama Wali Kelas.',
                     '8. Akun login dibuat otomatis dengan password default. NIP yang sudah ada hanya diperbarui nama dan kelasnya.',
                     '9. Baris contoh (nama diawali CONTOH) dilewati saat import. Boleh dihapus atau ditimpa.',
                 ];

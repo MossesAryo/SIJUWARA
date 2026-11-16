@@ -16,18 +16,29 @@ function openModal(modalId) {
         function openFilterModal() { 
        openModal('modal-filter'); }
 
-        function openEditModal(nip, nama, id_jurusan) {
-            document.getElementById('edit_nip').value = nip;
-            document.getElementById('edit_nama').value = nama;
-            document.getElementById('edit_jurusan').value = id_jurusan;
-            document.getElementById('form-edit').action = `/kaprog/${nip}/update`;
+        /** Tombol edit membawa atribut data-nip dan data-jurusan. */
+        function openEditModal(btn) {
+            const nip = btn.dataset.nip;
+            const action = `/kaprog/${encodeURIComponent(nip)}/update`;
+            const select = document.getElementById('edit_nip_guru');
+
+            // Guru yang sudah jadi ketua program tidak bisa dipilih lagi, kecuali guru yang sedang diedit.
+            Array.from(select.options).forEach(opt => {
+                opt.disabled = opt.dataset.kaprog === '1' && opt.value !== String(nip);
+            });
+
+            select.value = nip;
+            document.getElementById('edit_jurusan').value = btn.dataset.jurusan;
+            document.getElementById('form-edit').action = action;
+            document.getElementById('edit_action').value = action;
             openModal('modal-edit');
         }
 
 
-        function openDeleteModal(nip, nama) {
-            document.getElementById('delete-nama-ketua').innerText = nama;
-            document.getElementById('form-delete').action = `/kaprog/${nip}`;
+        /** Tombol hapus membawa atribut data-nip dan data-nama. */
+        function openDeleteModal(btn) {
+            document.getElementById('delete-nama-ketua').innerText = btn.dataset.nama;
+            document.getElementById('form-delete').action = `/kaprog/${encodeURIComponent(btn.dataset.nip)}`;
             openModal('modal-delete');
         }
 

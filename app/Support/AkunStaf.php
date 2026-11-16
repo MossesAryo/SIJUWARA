@@ -40,6 +40,43 @@ class AkunStaf
             || DB::table('walikelas')->where('nip_walikelas', $nip)->exists();
     }
 
+    /**
+     * Untuk edit NIP: true bila NIP baru (yang berbeda dari NIP lama) sudah dipakai siapa pun.
+     * NIP dicari berurutan di 4 tabel saat login, jadi tidak boleh kembar lintas role.
+     */
+    public static function nipTerpakaiOlehLain($nipBaru, $nipLama): bool
+    {
+        $nipBaru = self::bersihkanNip($nipBaru);
+
+        if ($nipBaru === (string) $nipLama) {
+            return false;
+        }
+
+        return self::nipTerpakai($nipBaru);
+    }
+
+    /**
+     * Pesan yang menjelaskan NIP itu sudah dipakai sebagai apa (wakasek, guru BK, ketua program, wali kelas).
+     * Dipakai saat guru dipilih sebagai ketua program tetapi NIP-nya sudah punya akun lain.
+     */
+    public static function pesanNipTerpakai(string $nip): string
+    {
+        $sebagai = [
+            'wakasek'       => ['nip_wakasek', 'wakasek'],
+            'guru_bk'       => ['nip_bk', 'guru BK'],
+            'ketua_program' => ['nip_kaprog', 'ketua program'],
+            'walikelas'     => ['nip_walikelas', 'wali kelas'],
+        ];
+
+        foreach ($sebagai as $tabel => [$kolom, $label]) {
+            if (DB::table($tabel)->where($kolom, $nip)->exists()) {
+                return "NIP ini sudah terdaftar sebagai {$label}.";
+            }
+        }
+
+        return 'NIP sudah terdaftar pada data guru/pegawai lain.';
+    }
+
     /** Username = nama. Kalau sudah dipakai, ditambah NIP. */
     public static function buatUsername(string $nama, string $nip): string
     {

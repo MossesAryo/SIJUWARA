@@ -545,9 +545,17 @@ class UserController extends Controller
                 }
 
                 // Username baru ikut menurun ke tabel profil lewat ON UPDATE CASCADE.
+                $usernameLama = $user->username;
                 $user->username = $data['username'];
 
                 $user->save();
+
+                // dibuat_oleh menyimpan username apa adanya (tanpa foreign key), ikutkan manual.
+                if ($usernameLama !== $data['username']) {
+                    DB::table('rencana_pindah_kelas')
+                        ->where('dibuat_oleh', $usernameLama)
+                        ->update(['dibuat_oleh' => $data['username']]);
+                }
 
                 if (!$profil) {
                     return;
