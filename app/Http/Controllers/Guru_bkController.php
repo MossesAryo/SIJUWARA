@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\guru;
 use App\Models\guru_bk;
 use App\Support\AkunStaf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 use App\Exports\Guru_Bk_ExportExcel;
 use App\Imports\Guru_Bk_Import;
@@ -16,7 +19,8 @@ use App\Exports\BK_Template;
 
 /**
  * Manajemen akun dan kelas guru BK.
- * CRUD data guru BK, impor/ekspor, serta relasi kelas.
+ * Guru BK dipilih dari data guru (menu Guru), bukan diketik ulang:
+ * NIP dan nama mengikuti data guru. CRUD data guru BK, impor/ekspor, serta relasi kelas.
  */
 class Guru_bkController extends Controller
 {
@@ -40,8 +44,11 @@ class Guru_bkController extends Controller
         $guru_bk = $query->orderBy('nama_guru_bk')->paginate(10)
                       ->appends($request->only(['search', 'nip_bk', 'kelas']));
 
+        // Pilihan guru untuk form tambah/edit. Guru yang sudah punya jabatan ditandai.
         return view('wakasek.guru_bk.index', [
-            'guru_bk' => $guru_bk,
+            'guru_bk'      => $guru_bk,
+            'daftar_guru'  => guru::orderBy('nama_guru')->get(),
+            'peta_jabatan' => guru::petaJabatan(),
         ]);
     }
 
@@ -59,42 +66,40 @@ class Guru_bkController extends Controller
     public function store(Request $request)
     {
         $request->merge([
-            'nip_bk'       => AkunStaf::bersihkanNip($request->input('nip_bk')),
-            'nama_guru_bk' => AkunStaf::rapikanNama($request->input('nama_guru_bk')),
+            'nip_guru' => AkunStaf::bersihkanNip($request->input('nip_guru')),
         ]);
 
         // Validasi di luar try/catch supaya pesan per kolom tampil di form.
         $data = $request->validate([
-            'nip_bk' => [
+            'nip_guru' => [
                 'required',
-                'regex:/^\d{1,18}$/',
+                Rule::exists('guru', 'nip_guru'),
                 function ($attribute, $value, \Closure $fail) {
                     if (AkunStaf::nipTerpakai((string) $value)) {
-                        $fail('NIP sudah terdaftar pada data guru/pegawai lain.');
+                        $fail(AkunStaf::pesanNipTerpakai((string) $value));
                     }
                 },
             ],
-            'nama_guru_bk' => ['required', 'string', 'max:255'],
         ], [
-            'nip_bk.required'       => 'NIP wajib diisi.',
-            'nip_bk.regex'          => 'NIP harus berupa angka (maksimal 18 digit).',
-            'nama_guru_bk.required' => 'Nama guru BK wajib diisi.',
-            'nama_guru_bk.max'      => 'Nama guru BK maksimal 255 karakter.',
+            'nip_guru.required' => 'Guru wajib dipilih.',
+            'nip_guru.exists'   => 'Guru yang dipilih tidak ada di data guru.',
         ]);
+
+        $guru = guru::where('nip_guru', $data['nip_guru'])->firstOrFail();
 
         try {
             // Akun user dan data guru BK disimpan bersamaan atau tidak sama sekali.
-            DB::transaction(function () use ($data) {
+            DB::transaction(function () use ($guru) {
                 $user = AkunStaf::buatUser(
-                    $data['nama_guru_bk'],
-                    $data['nip_bk'],
+                    $guru->nama_guru,
+                    $guru->nip_guru,
                     User::ROLE_GURU_BK
                 );
 
                 guru_bk::create([
-                    'nip_bk'       => $data['nip_bk'],
+                    'nip_bk'       => $guru->nip_guru,
                     'username'     => $user->username,
-                    'nama_guru_bk' => $data['nama_guru_bk'],
+                    'nama_guru_bk' => $guru->nama_guru,
                 ]);
             });
         } catch (\Throwable $e) {
@@ -108,29 +113,58 @@ class Guru_bkController extends Controller
 
     public function update(Request $request, $nip_bk)
     {
+        $data = $request->validate([
+            'nip_guru' => ['required', Rule::exists('guru', 'nip_guru')],
+        ], [
+            'nip_guru.required' => 'Guru wajib dipilih.',
+            'nip_guru.exists'   => 'Guru yang dipilih tidak ada di data guru.',
+        ]);
+
+        $guru = guru::where('nip_guru', $data['nip_guru'])->firstOrFail();
+
+        if (AkunStaf::nipTerpakaiOlehLain($guru->nip_guru, $nip_bk)) {
+            return redirect()->back()->withInput()
+                ->withErrors(['nip_guru' => AkunStaf::pesanNipTerpakai((string) $guru->nip_guru)]);
+        }
+
+        $guruBerganti = (string) $guru->nip_guru !== (string) $nip_bk;
+
         try {
-            $request->validate([
-                'nip_bk' => ['required', 'regex:/^\d{5,18}$/'],
-                'nama_guru_bk' => 'required',
-            ], [
-                'nip_bk.regex' => 'NIP harus berupa angka 5 sampai 18 digit.',
-            ]);
-
-            if (AkunStaf::nipTerpakaiOlehLain($request->nip_bk, $nip_bk)) {
-                return redirect()->back()->withInput()
-                    ->withErrors(['nip_bk' => 'NIP sudah dipakai oleh pengguna lain.']);
-            }
-
             $bk = guru_bk::where('nip_bk', $nip_bk)->firstOrFail();
 
-            $bk->update([
-                'nip_bk' => $request->nip_bk,
-                'nama_guru_bk' => $request->nama_guru_bk,
-            ]);
+            DB::transaction(function () use ($bk, $guru, $guruBerganti) {
+                $username = $bk->username;
 
-            return redirect()->route('gurubk.index')->with('success', 'Data berhasil diperbarui.');
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+                // Orangnya diganti: akun login ikut ke guru baru dan password dikembalikan ke awal,
+                // supaya guru baru tidak memakai password guru BK sebelumnya.
+                if ($guruBerganti) {
+                    $user = User::where('username', $bk->username)->first();
+
+                    if ($user) {
+                        $user->update([
+                            'username' => AkunStaf::buatUsername($guru->nama_guru, $guru->nip_guru),
+                            'email'    => AkunStaf::buatEmail($guru->nama_guru, $guru->nip_guru),
+                            'password' => Hash::make(AkunStaf::PASSWORD_DEFAULT),
+                        ]);
+                        $username = $user->username;
+                    }
+                }
+
+                guru_bk::where('nip_bk', $bk->nip_bk)->update([
+                    'nip_bk'       => $guru->nip_guru,
+                    'nama_guru_bk' => $guru->nama_guru,
+                    'username'     => $username,
+                ]);
+            });
+
+            $pesan = 'Data berhasil diperbarui.';
+            if ($guruBerganti) {
+                $pesan .= ' Login dengan NIP guru baru, password awal: ' . AkunStaf::PASSWORD_DEFAULT . '.';
+            }
+
+            return redirect()->route('gurubk.index')->with('success', $pesan);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', AkunStaf::pesanGagal($e, 'Ubah guru BK'));
         }
     }
 

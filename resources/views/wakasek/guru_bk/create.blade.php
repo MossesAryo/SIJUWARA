@@ -26,23 +26,45 @@
                 </div>
             @endif
 
-            <div class="space-y-2">
+            <div class="space-y-3">
                 <div>
-                    <label for="nip" class="block text-sm font-medium text-gray-700">NIP</label>
-                    <input type="text" id="nip" name="nip_bk" placeholder=" Contoh : 1908756382"
-                        inputmode="numeric" maxlength="30"
-                        value="{{ $bukaCreate ? old('nip_bk') : '' }}"
-                        class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm px-3 py-1.5 focus:ring focus:ring-blue-200 focus:outline-none"
-                        required>
+                    <label for="nip_guru" class="block text-sm font-medium text-gray-700">Guru</label>
+                    <select id="nip_guru" name="nip_guru" required data-guru-select
+                        data-nip-target="tampil_nip" data-nama-target="tampil_nama"
+                        class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm px-3 py-1.5 focus:ring focus:ring-blue-200 focus:outline-none">
+                        <option value="">-- Pilih Guru --</option>
+                        @foreach ($daftar_guru as $g)
+                            @php $jabatan = $peta_jabatan[(string) $g->nip_guru] ?? null; @endphp
+                            <option value="{{ $g->nip_guru }}" data-nama="{{ $g->nama_guru }}"
+                                {{ $jabatan ? 'disabled' : '' }}
+                                {{ $bukaCreate && (string) old('nip_guru') === (string) $g->nip_guru ? 'selected' : '' }}>
+                                {{ $g->nama_guru }} ({{ $g->nip_guru }}){{ $jabatan ? ' - sudah menjadi ' . $jabatan : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if ($daftar_guru->isEmpty())
+                        <p class="text-xs text-amber-600 mt-1">
+                            Belum ada data guru. Tambah atau import dulu di menu
+                            <a href="{{ route('guru.index') }}" class="underline font-medium">Guru</a>.
+                        </p>
+                    @else
+                        <p class="text-xs text-gray-500 mt-1">
+                            Guru BK dipilih dari data guru. NIP dan nama terisi otomatis.
+                        </p>
+                    @endif
                 </div>
 
-                <div>
-                    <label for="nama" class="block text-sm font-medium text-gray-700">Nama</label>
-                    <input type="text" id="nama" name="nama_guru_bk" placeholder=" Contoh : Hestia Nur"
-                        maxlength="255"
-                        value="{{ $bukaCreate ? old('nama_guru_bk') : '' }}"
-                        class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm px-3 py-1.5 focus:ring focus:ring-blue-200 focus:outline-none"
-                        required>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label for="tampil_nip" class="block text-sm font-medium text-gray-700">NIP</label>
+                        <input type="text" id="tampil_nip" readonly tabindex="-1" placeholder="Terisi otomatis"
+                            class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm px-3 py-1.5 bg-gray-50 text-gray-700">
+                    </div>
+                    <div>
+                        <label for="tampil_nama" class="block text-sm font-medium text-gray-700">Nama</label>
+                        <input type="text" id="tampil_nama" readonly tabindex="-1" placeholder="Terisi otomatis"
+                            class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm px-3 py-1.5 bg-gray-50 text-gray-700">
+                    </div>
                 </div>
             </div>
             <div class="flex justify-end gap-2">

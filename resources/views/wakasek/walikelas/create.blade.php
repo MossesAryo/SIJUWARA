@@ -28,19 +28,42 @@
 
             <div class="space-y-4">
                 <div>
-                    <label for="nip_walikelas" class="block text-sm font-medium text-gray-700 mb-1">NIP</label>
-                    <input type="text" id="nip_walikelas" name="nip_walikelas" required
-                        inputmode="numeric" maxlength="30"
-                        value="{{ $bukaCreate ? old('nip_walikelas') : '' }}"
-                        placeholder="Contoh : 1902854768"
+                    <label for="nip_guru" class="block text-sm font-medium text-gray-700 mb-1">Guru</label>
+                    <select id="nip_guru" name="nip_guru" required data-guru-select
+                        data-nip-target="tampil_nip" data-nama-target="tampil_nama"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">-- Pilih Guru --</option>
+                        @foreach ($daftar_guru as $g)
+                            @php $jabatan = $peta_jabatan[(string) $g->nip_guru] ?? null; @endphp
+                            <option value="{{ $g->nip_guru }}" data-nama="{{ $g->nama_guru }}"
+                                {{ $jabatan ? 'disabled' : '' }}
+                                {{ $bukaCreate && (string) old('nip_guru') === (string) $g->nip_guru ? 'selected' : '' }}>
+                                {{ $g->nama_guru }} ({{ $g->nip_guru }}){{ $jabatan ? ' - sudah menjadi ' . $jabatan : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if ($daftar_guru->isEmpty())
+                        <p class="text-xs text-amber-600 mt-1">
+                            Belum ada data guru. Tambah atau import dulu di menu
+                            <a href="{{ route('guru.index') }}" class="underline font-medium">Guru</a>.
+                        </p>
+                    @else
+                        <p class="text-xs text-gray-500 mt-1">
+                            Wali kelas dipilih dari data guru. NIP dan nama terisi otomatis.
+                        </p>
+                    @endif
                 </div>
-                <div>
-                    <label for="nama_walikelas" class="block text-sm font-medium text-gray-700 mb-1">Nama Walikelas</label>
-                    <input type="text" id="nama_walikelas" name="nama_walikelas" required maxlength="255"
-                        value="{{ $bukaCreate ? old('nama_walikelas') : '' }}"
-                        placeholder="Contoh : Ahmad Fauzi"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="tampil_nip" class="block text-sm font-medium text-gray-700 mb-1">NIP</label>
+                        <input type="text" id="tampil_nip" readonly tabindex="-1" placeholder="Terisi otomatis"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 text-gray-700">
+                    </div>
+                    <div>
+                        <label for="tampil_nama" class="block text-sm font-medium text-gray-700 mb-1">Nama Walikelas</label>
+                        <input type="text" id="tampil_nama" readonly tabindex="-1" placeholder="Terisi otomatis"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 text-gray-700">
+                    </div>
                 </div>
                 <div>
                     <label for="id_kelas" class="block text-sm font-medium text-gray-700 mb-1">

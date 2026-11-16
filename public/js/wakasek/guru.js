@@ -26,17 +26,22 @@ function openCreateModal() {
     openModal('modal-create');
 }
 
-/** Tombol edit membawa atribut data-nip, data-nama, data-kaprog. */
+/** Tombol edit membawa atribut data-nip, data-nama, data-jabatan. */
 function openEditModal(btn) {
     const nip = btn.dataset.nip;
-    const sudahKaprog = btn.dataset.kaprog === '1';
+    const jabatan = btn.dataset.jabatan || '';
+    const terkunci = jabatan !== '';
     const action = `/guru/${encodeURIComponent(nip)}/update`;
 
+    // NIP guru yang sudah punya jabatan dipakai untuk login, jadi dikunci.
     const inputNip = document.getElementById('edit_nip_guru');
     inputNip.value = nip;
-    inputNip.readOnly = sudahKaprog;
-    inputNip.classList.toggle('bg-gray-50', sudahKaprog);
-    document.getElementById('edit_nip_info').classList.toggle('hidden', !sudahKaprog);
+    inputNip.readOnly = terkunci;
+    inputNip.classList.toggle('bg-gray-50', terkunci);
+
+    const info = document.getElementById('edit_nip_info');
+    info.textContent = `NIP tidak bisa diubah karena guru ini menjabat sebagai ${jabatan}.`;
+    info.classList.toggle('hidden', !terkunci);
 
     document.getElementById('edit_nama_guru').value = btn.dataset.nama;
     document.getElementById('form-edit').action = action;

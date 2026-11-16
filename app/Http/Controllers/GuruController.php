@@ -6,7 +6,10 @@ use App\Exports\Guru_ExportExcel;
 use App\Exports\Guru_Template;
 use App\Imports\Guru_Import;
 use App\Models\guru;
+use App\Models\guru_bk;
 use App\Models\ketua_program;
+use App\Models\wakasek;
+use App\Models\walikelas;
 use App\Support\AkunStaf;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -17,15 +20,17 @@ use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * Data guru (master data) untuk Wakasek.
- * Terpisah dari data wali kelas. Guru tidak punya akun login;
- * ketua program dipilih dari daftar ini.
+ * Data guru dan staf TU (master data, guru_staf) untuk Wakasek.
+ * Terpisah dari data jabatan. Guru tidak punya akun login.
+ *
+ * Alur: import data guru/staf, lalu petakan jabatannya di menu Wali Kelas,
+ * Guru BK, atau Ketua Program. NIP dan nama di form jabatan dipilih dari data ini.
  */
 class GuruController extends Controller
 {
     public function index(Request $request)
     {
-        $query = guru::with('kaprog');
+        $query = guru::with(['wakasek', 'gurubk', 'kaprog.jurusan', 'walikelas.kelas']);
 
         if ($request->filled('search')) {
             $search = trim($request->search);
@@ -103,10 +108,11 @@ class GuruController extends Controller
                     ->withErrors(['nip_guru' => 'NIP sudah terdaftar pada data guru.']);
             }
 
-            // NIP ketua program dipakai untuk login, jadi tidak diubah dari sini.
-            if (ketua_program::where('nip_kaprog', $guru->nip_guru)->exists()) {
+            // NIP yang sudah punya jabatan dipakai untuk login, jadi tidak diubah dari sini.
+            $jabatan = guru::petaJabatan()[(string) $guru->nip_guru] ?? null;
+            if ($jabatan) {
                 return redirect()->back()->withInput()
-                    ->withErrors(['nip_guru' => 'NIP tidak bisa diubah karena guru ini menjadi ketua program.']);
+                    ->withErrors(['nip_guru' => "NIP tidak bisa diubah karena guru ini menjabat sebagai {$jabatan}."]);
             }
         }
 
@@ -118,9 +124,15 @@ class GuruController extends Controller
                     'updated_at' => now(),
                 ]);
 
-                // Nama pada data ketua program ikut diperbarui.
+                // Nama pada data jabatan ikut diperbarui.
                 ketua_program::where('nip_kaprog', $data['nip_guru'])
                     ->update(['nama_ketua_program' => $data['nama_guru']]);
+                walikelas::where('nip_walikelas', $data['nip_guru'])
+                    ->update(['nama_walikelas' => $data['nama_guru']]);
+                guru_bk::where('nip_bk', $data['nip_guru'])
+                    ->update(['nama_guru_bk' => $data['nama_guru']]);
+                wakasek::where('nip_wakasek', $data['nip_guru'])
+                    ->update(['nama_wakasek' => $data['nama_guru']]);
             });
         } catch (\Throwable $e) {
             return redirect()->back()->withInput()
@@ -135,9 +147,10 @@ class GuruController extends Controller
         try {
             $guru = guru::where('nip_guru', $nip)->firstOrFail();
 
-            if (ketua_program::where('nip_kaprog', $guru->nip_guru)->exists()) {
+            $jabatan = guru::petaJabatan()[(string) $guru->nip_guru] ?? null;
+            if ($jabatan) {
                 return redirect()->back()
-                    ->with('error', 'Guru tidak dapat dihapus karena menjadi ketua program. Hapus data ketua program terlebih dahulu.');
+                    ->with('error', "Guru tidak dapat dihapus karena menjabat sebagai {$jabatan}. Hapus data {$jabatan} terlebih dahulu.");
             }
 
             $guru->delete();
