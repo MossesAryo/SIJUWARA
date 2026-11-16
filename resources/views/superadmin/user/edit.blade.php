@@ -17,13 +17,13 @@
             <i class="bi bi-arrow-left"></i> Kembali ke Manajemen User
         </a>
         <h2 class="mt-2 text-lg font-bold text-gray-900">Edit Akun {{ $labelRole }}</h2>
-        <p class="text-sm text-gray-400">Role, NIP, dan username dikunci karena menjadi kunci relasi data.</p>
+        <p class="text-sm text-gray-400">Role dikunci. Username dan NIP boleh diubah, riwayat data akan ikut menyesuaikan otomatis.</p>
     </div>
 
     @unless ($profil || $role === 5)
         <div class="mb-4 flex max-w-3xl items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             <i class="bi bi-exclamation-triangle mt-0.5"></i>
-            <span>Profil {{ $labelRole }} untuk akun ini tidak ditemukan, sehingga hanya email dan password yang dapat diubah.</span>
+            <span>Profil {{ $labelRole }} untuk akun ini tidak ditemukan, sehingga hanya username, email, dan password yang dapat diubah.</span>
         </div>
     @endunless
 
@@ -39,16 +39,22 @@
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-gray-700">Username</label>
-                    <input type="text" value="{{ $user->username }}" readonly class="{{ $input }} {{ $terkunci }}">
-                    <p class="mt-1 text-xs text-gray-400">Username tidak dapat diubah.</p>
+                    <label for="username" class="mb-1 block text-sm font-medium text-gray-700">Username <span class="text-red-500">*</span></label>
+                    <input id="username" name="username" type="text" required maxlength="255"
+                        value="{{ old('username', $user->username) }}"
+                        class="{{ $input }} {{ $errors->has('username') ? 'border-red-400' : 'border-gray-300' }}">
+                    <p class="mt-1 text-xs text-gray-400">Huruf, angka, titik, garis bawah, dan strip. Tidak boleh angka saja.</p>
+                    @error('username') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 @if ($profil)
                     <div>
-                        <label class="mb-1 block text-sm font-medium text-gray-700">NIP</label>
-                        <input type="text" value="{{ $nipProfil }}" readonly class="{{ $input }} {{ $terkunci }} font-mono">
-                        <p class="mt-1 text-xs text-gray-400">NIP tidak dapat diubah karena terhubung dengan riwayat data.</p>
+                        <label for="nip" class="mb-1 block text-sm font-medium text-gray-700">NIP <span class="text-red-500">*</span></label>
+                        <input id="nip" name="nip" type="text" required inputmode="numeric" maxlength="18"
+                            value="{{ old('nip', $nipProfil) }}"
+                            class="{{ $input }} font-mono {{ $errors->has('nip') ? 'border-red-400' : 'border-gray-300' }}">
+                        <p class="mt-1 text-xs text-gray-400">Angka 5 sampai 18 digit. Dipakai untuk login.</p>
+                        @error('nip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
 
                     <div>
