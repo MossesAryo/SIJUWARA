@@ -457,9 +457,39 @@ class UserController extends Controller
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
         ];
 
+        // Username bisa diubah untuk semua role (termasuk Super Admin).
+        $rules['username'] = [
+            'required',
+            'string',
+            'max:255',
+            Rule::unique('users', 'username')->ignore($user->id),
+        ];
+
+        // Username lama dari impor bisa berisi spasi/koma (dibuat dari nama),
+        // jadi aturan format hanya berlaku bila username benar-benar diganti.
+        if ((string) $request->input('username') !== $user->username) {
+            $rules['username'][] = 'regex:/^[A-Za-z0-9._-]+$/';
+            // Tidak boleh angka saja: login memeriksa NIP lebih dulu.
+            $rules['username'][] = 'not_regex:/^\d+$/';
+        }
+
         if ($profil) {
             $nip = $profil->{$cfg['nip']};
             $rules['nama'] = ['required', 'string', 'max:255'];
+
+            // NIP bisa diubah untuk semua role yang punya profil.
+            $rules['nip'] = [
+                'required',
+                'regex:/^\d{5,18}$/',
+                function ($attribute, $value, $fail) use ($nip, $profil) {
+                    if ($this->nipSudahDipakai((string) $value, [
+                        'nip' => $nip,
+                        'username' => $profil->username,
+                    ])) {
+                        $fail('NIP sudah dipakai oleh pengguna lain.');
+                    }
+                },
+            ];
 
             if ($role === User::ROLE_WALIKELAS) {
                 $rules['id_kelas'] = [
@@ -514,6 +544,9 @@ class UserController extends Controller
                     $user->password = $data['password'];
                 }
 
+                // Username baru ikut menurun ke tabel profil lewat ON UPDATE CASCADE.
+                $user->username = $data['username'];
+
                 $user->save();
 
                 if (!$profil) {
@@ -526,6 +559,9 @@ class UserController extends Controller
                     $cfg['nama'] => $data['nama'],
                     'updated_at' => now(),
                 ];
+
+                // NIP baru ikut menurun ke tabel riwayat lewat ON UPDATE CASCADE.
+                $ubah[$cfg['nip']] = $data['nip'];
 
                 if ($role === User::ROLE_WALIKELAS) {
                     $ubah['id_kelas'] = $data['id_kelas'];
@@ -540,8 +576,9 @@ class UserController extends Controller
                     ->update($ubah);
 
                 if ($role === User::ROLE_GURU_BK) {
+                    // guru_bk_kelas sudah ikut pindah ke NIP baru lewat cascade.
                     $this->sinkronKelasGuruBk(
-                        (int) $nip,
+                        (int) $data['nip'],
                         $data['kelas'] ?? []
                     );
                 }
@@ -763,6 +800,18 @@ class UserController extends Controller
     ): string {
         $hasil = [];
 
+        if ($user->username !== $data['username']) {
+            $hasil[] = "username {$user->username} → {$data['username']}";
+        }
+
+        if (
+            $profil
+            && $cfg
+            && (string) $profil->{$cfg['nip']} !== (string) $data['nip']
+        ) {
+            $hasil[] = "NIP {$profil->{$cfg['nip']}} → {$data['nip']}";
+        }
+
         if ($user->email !== $data['email']) {
             $hasil[] = "email {$user->email} → {$data['email']}";
         }
@@ -825,18 +874,24 @@ class UserController extends Controller
      * Periksa apakah NIP sudah dipakai di salah satu tabel profil.
      * Login mencari NIP di semua tabel profil, jadi NIP harus unik lintas role.
      */
-    private function nipSudahDipakai(string $nip): bool
+    private function nipSudahDipakai(string $nip, ?array $kecuali = null): bool
     {
         foreach (self::PETA as $cfg) {
             if ($cfg['tabel'] === null) {
                 continue;
             }
 
-            if (
-                DB::table($cfg['tabel'])
-                    ->where($cfg['nip'], $nip)
-                    ->exists()
-            ) {
+            $query = DB::table($cfg['tabel'])->where($cfg['nip'], $nip);
+
+            // Abaikan NIP milik akun yang sedang diedit.
+            if ($kecuali !== null) {
+                $query->whereNot(function ($w) use ($cfg, $kecuali) {
+                    $w->where($cfg['tabel'] . '.' . $cfg['nip'], $kecuali['nip'])
+                        ->where($cfg['tabel'] . '.username', $kecuali['username']);
+                });
+            }
+
+            if ($query->exists()) {
                 return true;
             }
         }
