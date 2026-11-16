@@ -156,9 +156,12 @@
                                             data-nip="{{ $item->nip_guru }}"
                                             data-nama="{{ $item->nama_guru }}"
                                             data-jabatan="{{ $item->jabatan }}"
+                                            data-jabatan-kode="{{ $item->jabatan_kode }}"
+                                            data-id-kelas="{{ optional($item->walikelas)->id_kelas }}"
+                                            data-id-jurusan="{{ optional($item->kaprog)->id_jurusan }}"
                                             onclick="openEditModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full"
-                                            title="Edit Guru">
+                                            title="Edit Guru & Jabatan">
                                             <i class="bi bi-pencil-square text-sm"></i>
                                         </button>
                                         <button type="button"
