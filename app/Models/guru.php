@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  * (Wakasek, Guru BK, Ketua Program, Wali Kelas). NIP dan nama pada form jabatan
  * dipilih dari data ini lewat dropdown, bukan diketik ulang.
  */
-class guru extends Model
+class Guru extends Model
 {
     protected $table = 'guru';
     protected $primaryKey = 'nip_guru';
@@ -57,6 +57,18 @@ class guru extends Model
         foreach (self::DAFTAR_JABATAN as $relasi => $label) {
             if ($this->$relasi) {
                 return $label;
+            }
+        }
+
+        return null;
+    }
+
+    /** Kode jabatan guru ini (wakasek, gurubk, kaprog, walikelas), atau null kalau belum dipetakan. */
+    public function getJabatanKodeAttribute(): ?string
+    {
+        foreach (self::DAFTAR_JABATAN as $relasi => $label) {
+            if ($this->$relasi) {
+                return $relasi;
             }
         }
 

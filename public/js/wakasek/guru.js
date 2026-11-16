@@ -30,6 +30,18 @@ function openCreateModal() {
     openModal('modal-create');
 }
 
+/** Tampilkan isian tambahan sesuai jabatan yang dipilih di modal edit. */
+function toggleJabatanEdit() {
+    const jabatan = document.getElementById('edit_jabatan').value;
+    document.getElementById('edit_blok_kelas').classList.toggle('hidden', jabatan !== 'walikelas');
+    document.getElementById('edit_blok_jurusan').classList.toggle('hidden', jabatan !== 'kaprog');
+    document.getElementById('edit_info_wakasek').classList.toggle('hidden', jabatan !== 'wakasek');
+    document.getElementById('edit_id_jurusan').required = jabatan === 'kaprog';
+}
+
+// Modal edit dibuka otomatis setelah validasi gagal: samakan isian jabatannya
+document.addEventListener('DOMContentLoaded', toggleJabatanEdit);
+
 /** Tombol edit membawa atribut data-nip, data-nama, data-jabatan. */
 function openEditModal(btn) {
     const nip = btn.dataset.nip;
@@ -44,10 +56,16 @@ function openEditModal(btn) {
     inputNip.classList.toggle('bg-gray-50', terkunci);
 
     const info = document.getElementById('edit_nip_info');
-    info.textContent = `NIP tidak bisa diubah karena guru ini menjabat sebagai ${jabatan}.`;
+    info.textContent = `NIP tidak bisa diubah karena guru ini menjabat sebagai ${jabatan}. Hapus jabatannya dulu untuk mengubah NIP.`;
     info.classList.toggle('hidden', !terkunci);
 
     document.getElementById('edit_nama_guru').value = btn.dataset.nama;
+
+    // Jabatan saat ini (kosong = belum punya jabatan)
+    document.getElementById('edit_jabatan').value = btn.dataset.jabatanKode || '';
+    document.getElementById('edit_id_kelas').value = btn.dataset.idKelas || '';
+    document.getElementById('edit_id_jurusan').value = btn.dataset.idJurusan || '';
+    toggleJabatanEdit();
     document.getElementById('form-edit').action = action;
     document.getElementById('edit_action').value = action;
 

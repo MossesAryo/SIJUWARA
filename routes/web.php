@@ -149,36 +149,31 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/laporan/export/pdf', [LaporanController::class, 'exportPdf'])->name('laporan.export.pdf');
     Route::get('/laporan/export/excel', [LaporanController::class, 'exportExcel'])->name('laporan.export.excel');
 
-    // Guru (data master, terpisah dari Wali Kelas).
-    // Lihat/export: Wakasek & Super Admin. Tambah, edit, hapus, import: hanya Super Admin.
+    // Guru (data master, terpisah dari Wali Kelas) - Wakasek & Super Admin.
+    // Ketua Program dipilih dari data ini.
     Route::middleware('UserAccess:1,5')->group(function () {
         Route::get('/guru', [GuruController::class, 'index'])->name('guru.index');
-        Route::get('/guru/export_pdf', [GuruController::class, 'export_pdf'])->name('guru.export.pdf');
-        Route::get('/guru/export_excel', [GuruController::class, 'export_excel'])->name('guru.export.excel');
-        Route::get('/guru/template', [GuruController::class, 'template'])->name('guru.template');
-    });
-    Route::middleware('UserAccess:5')->group(function () {
         Route::post('/guru/store', [GuruController::class, 'store'])->name('guru.store');
         Route::put('/guru/{nip}/update', [GuruController::class, 'update'])->name('guru.update');
         Route::delete('/guru/{nip}/destroy', [GuruController::class, 'destroy'])->name('guru.destroy');
+        Route::get('/guru/export_pdf', [GuruController::class, 'export_pdf'])->name('guru.export.pdf');
+        Route::get('/guru/export_excel', [GuruController::class, 'export_excel'])->name('guru.export.excel');
+        Route::get('/guru/template', [GuruController::class, 'template'])->name('guru.template');
         Route::post('/guru/import', [GuruController::class, 'import'])->name('guru.import');
     });
 
-    // Ketua Program (kelola data).
-    // Lihat/export: Wakasek & Super Admin. Tambah, edit, hapus, import: hanya Super Admin.
+    // Ketua Program (kelola data) - Wakasek & Super Admin.
     // Halaman Perpindahan Kelas milik Ketua Program ada di bawah dengan middleware sendiri.
     Route::middleware('UserAccess:1,5')->group(function () {
         Route::get('/kaprog', [KetuaProgramController::class, 'index'])->name('kaprog.index');
-        Route::get('/ketua_program/export_pdf', [KetuaProgramController::class, 'export_pdf'])->name('ketua_program.export.pdf');
-        Route::get('/ketua_program/export_excel', [KetuaProgramController::class, 'export_excel'])->name('ketua_program.export.excel');
-        Route::get('/ketua_program/template', [KetuaProgramController::class, 'template'])->name('ketua_program.template');
-    });
-    Route::middleware('UserAccess:5')->group(function () {
         Route::post('/kaprog/store', [KetuaProgramController::class, 'store'])->name('kaprog.store');
         Route::get('/kaprog/edit/{id}', [KetuaProgramController::class, 'edit'])->name('kaprog.edit');
         Route::put('/kaprog/{nip_kaprog}/update', [KetuaProgramController::class, 'update'])->name('kaprog.update');
         Route::delete('/kaprog/{nip_kaprog}', [KetuaProgramController::class, 'destroy'])->name('kaprog.destroy');
+        Route::get('/ketua_program/export_pdf', [KetuaProgramController::class, 'export_pdf'])->name('ketua_program.export.pdf');
+        Route::get('/ketua_program/export_excel', [KetuaProgramController::class, 'export_excel'])->name('ketua_program.export.excel');
         Route::post('/ketua_program/import', [KetuaProgramController::class, 'import'])->name('ketua_program.import');
+        Route::get('/ketua_program/template', [KetuaProgramController::class, 'template'])->name('ketua_program.template');
     });
 
     // Rencana Perpindahan Kelas 10 -> 11 (khusus Ketua Program).
@@ -200,36 +195,32 @@ Route::middleware(['auth'])->group(function () {
         ->name('kelas.siswa');
     Route::post('/kelas/store', [KelasController::class, 'store'])->name('kelas.store');
     Route::put('/kelas/{id}/update', [KelasController::class, 'update'])->name('kelas.update');
-    // Atur walikelas langsung dari halaman Kelas (hanya Super Admin)
+    // Atur walikelas langsung dari halaman Kelas (Wakasek & Super Admin)
     Route::put('/kelas/{id}/walikelas', [KelasController::class, 'updateWalikelas'])
         ->where('id', '[A-Za-z0-9\-]+')
-        ->middleware('UserAccess:5')
+        ->middleware('UserAccess:1,5')
         ->name('kelas.walikelas');
     Route::delete('/kelas/{id}', [KelasController::class, 'destroy'])->name('kelas.destroy');
 
-    // Guru BK. Lihat/export: semua yang login seperti sebelumnya. Tambah, edit, hapus, import: hanya Super Admin.
+    // Guru BK
     Route::get('/gurubk', [Guru_bkController::class, 'index'])->name('gurubk.index');
+    Route::post('/gurubk/store', [Guru_bkController::class, 'store'])->name('gurubk.store');
+    Route::put('/gurubk/{nip}/update', [Guru_bkController::class, 'update'])->name('gurubk.update');
+    Route::delete('/gurubk/{nip}/destroy', [Guru_bkController::class, 'destroy'])->name('gurubk.destroy');
     Route::get('/guru_bk/export_pdf', [Guru_bkController::class, 'export_pdf'])->name('guru_bk.export.pdf');
     Route::get('/guru_bk/export_excel', [Guru_bkController::class, 'export_excel'])->name('guru_bk.export.excel');
     Route::get('/guru-bk/template', [Guru_bkController::class, 'template'])->name('guru_bk.template');
-    Route::middleware('UserAccess:5')->group(function () {
-        Route::post('/gurubk/store', [Guru_bkController::class, 'store'])->name('gurubk.store');
-        Route::put('/gurubk/{nip}/update', [Guru_bkController::class, 'update'])->name('gurubk.update');
-        Route::delete('/gurubk/{nip}/destroy', [Guru_bkController::class, 'destroy'])->name('gurubk.destroy');
-        Route::post('/guru-bk/import', [Guru_bkController::class, 'import'])->name('guru_bk.import');
-    });
+    Route::post('/guru-bk/import', [Guru_bkController::class, 'import'])->name('guru_bk.import');
 
-    // Wali Kelas. Lihat/export: semua yang login seperti sebelumnya. Tambah, edit, hapus, import: hanya Super Admin.
+    // Wali Kelas
     Route::get('/walikelas', [WalikelasController::class, 'index'])->name('walikelas.index');
+    Route::post('/walikelas/store', [WalikelasController::class, 'store'])->name('walikelas.store');
+    Route::put('/walikelas/{nip_walikelas}/{username}/update', [WalikelasController::class, 'update'])->name('walikelas.update');
+    Route::delete('/walikelas/{nip_walikelas}', [WalikelasController::class, 'destroy'])->name('walikelas.destroy');
     Route::get('/walikelas/export_pdf', [WalikelasController::class, 'export_pdf'])->name('walikelas.export.pdf');
     Route::get('/walikelas/export_excel', [WalikelasController::class, 'export_excel'])->name('walikelas.export.excel');
     Route::get('/walikelas/template', [WalikelasController::class, 'template'])->name('walikelas.template');
-    Route::middleware('UserAccess:5')->group(function () {
-        Route::post('/walikelas/store', [WalikelasController::class, 'store'])->name('walikelas.store');
-        Route::put('/walikelas/{nip_walikelas}/{username}/update', [WalikelasController::class, 'update'])->name('walikelas.update');
-        Route::delete('/walikelas/{nip_walikelas}', [WalikelasController::class, 'destroy'])->name('walikelas.destroy');
-        Route::post('/walikelas/import', [WalikelasController::class, 'import'])->name('walikelas.import');
-    });
+    Route::post('/walikelas/import', [WalikelasController::class, 'import'])->name('walikelas.import');
 
     // Aspek Penilaian General
     // Halaman umum belum ada; arahkan ke daftar aspek penghargaan (nama route dipakai redirect destroy()).

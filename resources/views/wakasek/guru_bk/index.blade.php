@@ -12,17 +12,11 @@
                 <h1 class="text-2xl font-bold gradient-text">Data Guru BK</h1>
                 <p class="text-gray-600 mt-1">Kelola data Guru BK</p>
             </div>
-            @if (auth()->user()->isSuperAdmin())
             <button onclick="document.getElementById('modal-create').classList.remove('hidden')"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
                 <i class="bi bi-plus-lg"></i>
                 Tambah Guru BK
             </button>
-            @else
-                <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-gray-500 text-sm">
-                    <i class="bi bi-lock"></i> Hanya Super Admin yang dapat mengubah
-                </span>
-            @endif
         </div>
 
         @if (session('success'))
@@ -117,7 +111,6 @@
                                     <div class="text-sm font-semibold text-gray-900">{{ $item->nama_guru_bk }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    @if (auth()->user()->isSuperAdmin())
                                     <div class="flex items-center gap-1">
                                         <button
                                             onclick="openEditModal('{{ $item->nip_bk }}', '{{ $item->nama_guru_bk }}')"
@@ -132,9 +125,6 @@
                                             <i class="bi bi-trash text-sm"></i>
                                         </button>
                                     </div>
-                                    @else
-                                        <span class="inline-flex items-center gap-1 text-xs text-gray-400"><i class="bi bi-lock"></i> Super Admin</span>
-                                    @endif
                                 </td>
                             </tr>
                         @empty

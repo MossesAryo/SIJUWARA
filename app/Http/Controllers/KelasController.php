@@ -142,9 +142,9 @@ class KelasController extends Controller
 
         $kelas = $query->paginate(10)->appends($request->all());
 
-        // Daftar guru untuk pilihan walikelas (hanya Super Admin yang boleh mengubah).
+        // Daftar guru untuk pilihan walikelas (hanya Wakasek yang boleh mengubah).
         $guruList = collect();
-        if ($user && $user->role == '5') {
+        if ($user && $user->role == '1') {
             $guruList = walikelas::with('kelas:id_kelas,nama_kelas')
                 ->orderBy('nama_walikelas')
                 ->get(['nip_walikelas', 'nama_walikelas', 'id_kelas']);
