@@ -140,14 +140,22 @@
                     </button>
                     <div id="userDropdown"
                         class="dropdown-content ml-4 mt-1
-                        {{ request()->routeIs('walikelas.*') || request()->routeIs('gurubk.*') || request()->routeIs('kaprog.*') ? 'show' : '' }}">
+                        {{ request()->routeIs('guru.*') || request()->routeIs('walikelas.*') || request()->routeIs('gurubk.*') || request()->routeIs('kaprog.*') ? 'show' : '' }}">
                         <ul class="space-y-0.5 border-l border-gray-100 ml-2 pl-2">
+                            <li>
+                                <a href="{{ route('guru.index') }}"
+                                    class="flex items-center gap-3 px-3 py-2 text-sm rounded-lg menu-link
+                                    {{ request()->routeIs('guru.*') ? 'active-link' : 'text-gray-600 hover:bg-gray-50' }}">
+                                    <i class="bi bi-person-vcard"></i>
+                                    <span>Guru</span>
+                                </a>
+                            </li>
                             <li>
                                 <a href="{{ route('walikelas.index') }}"
                                     class="flex items-center gap-3 px-3 py-2 text-sm rounded-lg menu-link
                                     {{ request()->routeIs('walikelas.*') ? 'active-link' : 'text-gray-600 hover:bg-gray-50' }}">
-                                    <i class="bi bi-person-vcard"></i>
-                                    <span>Guru</span>
+                                    <i class="bi bi-person-workspace"></i>
+                                    <span>Wali Kelas</span>
                                 </a>
                             </li>
                             <li>

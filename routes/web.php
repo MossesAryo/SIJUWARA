@@ -18,6 +18,7 @@ use App\Http\Controllers\KelasController;
 use App\Http\Controllers\KelasTujuanController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\listcatatanController;
+use App\Http\Controllers\GuruController;
 use App\Http\Controllers\NotifikasiWakasekController;
 use App\Http\Controllers\PenilaianController;
 use App\Http\Controllers\PenghargaanController;
@@ -148,16 +149,32 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/laporan/export/pdf', [LaporanController::class, 'exportPdf'])->name('laporan.export.pdf');
     Route::get('/laporan/export/excel', [LaporanController::class, 'exportExcel'])->name('laporan.export.excel');
 
-    // Ketua Program
-    Route::get('/kaprog', [KetuaProgramController::class, 'index'])->name('kaprog.index');
-    Route::post('/kaprog/store', [KetuaProgramController::class, 'store'])->name('kaprog.store');
-    Route::get('/kaprog/edit/{id}', [KetuaProgramController::class, 'edit'])->name('kaprog.edit');
-    Route::put('/kaprog/{nip_kaprog}/update', [KetuaProgramController::class, 'update'])->name('kaprog.update');
-    Route::delete('/kaprog/{nip_kaprog}', [KetuaProgramController::class, 'destroy'])->name('kaprog.destroy');
-    Route::get('/ketua_program/export_pdf', [KetuaProgramController::class, 'export_pdf'])->name('ketua_program.export.pdf');
-    Route::get('/ketua_program/export_excel', [KetuaProgramController::class, 'export_excel'])->name('ketua_program.export.excel');
-    Route::post('/ketua_program/import', [KetuaProgramController::class, 'import'])->name('ketua_program.import');
-    Route::get('/ketua_program/template', [KetuaProgramController::class, 'template'])->name('ketua_program.template');
+    // Guru (data master, terpisah dari Wali Kelas) - Wakasek & Super Admin.
+    // Ketua Program dipilih dari data ini.
+    Route::middleware('UserAccess:1,5')->group(function () {
+        Route::get('/guru', [GuruController::class, 'index'])->name('guru.index');
+        Route::post('/guru/store', [GuruController::class, 'store'])->name('guru.store');
+        Route::put('/guru/{nip}/update', [GuruController::class, 'update'])->name('guru.update');
+        Route::delete('/guru/{nip}/destroy', [GuruController::class, 'destroy'])->name('guru.destroy');
+        Route::get('/guru/export_pdf', [GuruController::class, 'export_pdf'])->name('guru.export.pdf');
+        Route::get('/guru/export_excel', [GuruController::class, 'export_excel'])->name('guru.export.excel');
+        Route::get('/guru/template', [GuruController::class, 'template'])->name('guru.template');
+        Route::post('/guru/import', [GuruController::class, 'import'])->name('guru.import');
+    });
+
+    // Ketua Program (kelola data) - Wakasek & Super Admin.
+    // Halaman Perpindahan Kelas milik Ketua Program ada di bawah dengan middleware sendiri.
+    Route::middleware('UserAccess:1,5')->group(function () {
+        Route::get('/kaprog', [KetuaProgramController::class, 'index'])->name('kaprog.index');
+        Route::post('/kaprog/store', [KetuaProgramController::class, 'store'])->name('kaprog.store');
+        Route::get('/kaprog/edit/{id}', [KetuaProgramController::class, 'edit'])->name('kaprog.edit');
+        Route::put('/kaprog/{nip_kaprog}/update', [KetuaProgramController::class, 'update'])->name('kaprog.update');
+        Route::delete('/kaprog/{nip_kaprog}', [KetuaProgramController::class, 'destroy'])->name('kaprog.destroy');
+        Route::get('/ketua_program/export_pdf', [KetuaProgramController::class, 'export_pdf'])->name('ketua_program.export.pdf');
+        Route::get('/ketua_program/export_excel', [KetuaProgramController::class, 'export_excel'])->name('ketua_program.export.excel');
+        Route::post('/ketua_program/import', [KetuaProgramController::class, 'import'])->name('ketua_program.import');
+        Route::get('/ketua_program/template', [KetuaProgramController::class, 'template'])->name('ketua_program.template');
+    });
 
     // Rencana Perpindahan Kelas 10 -> 11 (khusus Ketua Program).
     // Hanya menyimpan rencana; siswa pindah saat Wakasek mengganti tahun ajaran.

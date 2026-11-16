@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Models\guru;
 use App\Models\ketua_program;
 use App\Models\jurusan;
 use App\Support\AkunStaf;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use App\Exports\Ketua_Program_ExportExcel;
 use App\Imports\Ketua_Program_Import;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -18,6 +22,7 @@ use App\Exports\Ketua_Program_Template;
 
 /**
  * Kelola data ketua program.
+ * Ketua program dipilih dari data guru (menu Guru), bukan diketik ulang.
  * CRUD akun ketua program dan keterkaitan jurusan.
  */
 class KetuaProgramController extends Controller
@@ -43,50 +48,55 @@ class KetuaProgramController extends Controller
                               ->appends($request->only(['jurusan', 'search']));
         $daftar_jurusan = jurusan::all();
 
-        return view('wakasek.kaprog.index', compact('ketua_program', 'daftar_jurusan'));
+        // Pilihan guru untuk form tambah/edit. Guru yang sudah jadi ketua program ditandai.
+        $daftar_guru = guru::orderBy('nama_guru')->get();
+        $nip_kaprog_terpakai = ketua_program::pluck('nip_kaprog')
+            ->map(fn ($nip) => (string) $nip)
+            ->all();
+
+        return view('wakasek.kaprog.index', compact(
+            'ketua_program',
+            'daftar_jurusan',
+            'daftar_guru',
+            'nip_kaprog_terpakai'
+        ));
     }
 
     public function store(Request $request)
     {
-        $request->merge([
-            'nip_kaprog'         => AkunStaf::bersihkanNip($request->input('nip_kaprog')),
-            'nama_ketua_program' => AkunStaf::rapikanNama($request->input('nama_ketua_program')),
-        ]);
-
         // Validasi di luar try/catch supaya pesan per kolom tampil di form.
         $data = $request->validate([
-            'nip_kaprog' => [
+            'nip_guru' => [
                 'required',
-                'regex:/^\d{1,18}$/',
+                Rule::exists('guru', 'nip_guru'),
                 function ($attribute, $value, \Closure $fail) {
                     if (AkunStaf::nipTerpakai((string) $value)) {
-                        $fail('NIP sudah terdaftar pada data guru/pegawai lain.');
+                        $fail(AkunStaf::pesanNipTerpakai((string) $value));
                     }
                 },
             ],
-            'nama_ketua_program' => ['required', 'string', 'max:255'],
-            'id_jurusan'         => ['required', Rule::exists('jurusan', 'id_jurusan')],
+            'id_jurusan' => ['required', Rule::exists('jurusan', 'id_jurusan')],
         ], [
-            'nip_kaprog.required'         => 'NIP wajib diisi.',
-            'nip_kaprog.regex'            => 'NIP harus berupa angka (maksimal 18 digit).',
-            'nama_ketua_program.required' => 'Nama ketua program wajib diisi.',
-            'nama_ketua_program.max'      => 'Nama ketua program maksimal 255 karakter.',
-            'id_jurusan.required'         => 'Program / kompetensi keahlian wajib dipilih.',
-            'id_jurusan.exists'           => 'Program / kompetensi keahlian tidak valid.',
+            'nip_guru.required'   => 'Guru wajib dipilih.',
+            'nip_guru.exists'     => 'Guru yang dipilih tidak ada di data guru.',
+            'id_jurusan.required' => 'Program / kompetensi keahlian wajib dipilih.',
+            'id_jurusan.exists'   => 'Program / kompetensi keahlian tidak valid.',
         ]);
+
+        $guru = guru::where('nip_guru', $data['nip_guru'])->firstOrFail();
 
         try {
             // Akun user dan data kaprog disimpan bersamaan atau tidak sama sekali.
-            DB::transaction(function () use ($data) {
+            DB::transaction(function () use ($guru, $data) {
                 $user = AkunStaf::buatUser(
-                    $data['nama_ketua_program'],
-                    $data['nip_kaprog'],
+                    $guru->nama_guru,
+                    $guru->nip_guru,
                     User::ROLE_KETUA_PROGRAM
                 );
 
                 ketua_program::create([
-                    'nip_kaprog'         => $data['nip_kaprog'],
-                    'nama_ketua_program' => $data['nama_ketua_program'],
+                    'nip_kaprog'         => $guru->nip_guru,
+                    'nama_ketua_program' => $guru->nama_guru,
                     'id_jurusan'         => $data['id_jurusan'],
                     'username'           => $user->username,
                 ]);
@@ -111,30 +121,62 @@ class KetuaProgramController extends Controller
 
     public function update(Request $request, $nip_kaprog)
     {
-        try {
-            $request->validate([
-                'nip_kaprog' => 'required|unique:ketua_program,nip_kaprog,' . $nip_kaprog . ',nip_kaprog',
-                'nama_ketua_program' => 'required|string|max:255',
-                'id_jurusan' => 'required',
-            ]);
+        $data = $request->validate([
+            'nip_guru'   => ['required', Rule::exists('guru', 'nip_guru')],
+            'id_jurusan' => ['required', Rule::exists('jurusan', 'id_jurusan')],
+        ], [
+            'nip_guru.required'   => 'Guru wajib dipilih.',
+            'nip_guru.exists'     => 'Guru yang dipilih tidak ada di data guru.',
+            'id_jurusan.required' => 'Program / kompetensi keahlian wajib dipilih.',
+            'id_jurusan.exists'   => 'Program / kompetensi keahlian tidak valid.',
+        ]);
 
-            if (AkunStaf::nipTerpakaiOlehLain($request->nip_kaprog, $nip_kaprog)) {
-                return redirect()->back()->withInput()
-                    ->withErrors(['nip_kaprog' => 'NIP sudah dipakai oleh pengguna lain.']);
-            }
+        $kp = ketua_program::where('nip_kaprog', $nip_kaprog)->firstOrFail();
+        $guru = guru::where('nip_guru', $data['nip_guru'])->firstOrFail();
+        $guruBerganti = (string) $guru->nip_guru !== (string) $kp->nip_kaprog;
 
-            $kp = ketua_program::where('nip_kaprog', $nip_kaprog)->firstOrFail();
-
-            $kp->update([
-                'nip_kaprog' => $request->nip_kaprog,
-                'nama_ketua_program' => $request->nama_ketua_program,
-                'id_jurusan' => $request->id_jurusan,
-            ]);
-
-            return redirect()->route('kaprog.index')->with('success', 'Data berhasil diperbarui.');
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+        if ($guruBerganti && AkunStaf::nipTerpakai((string) $guru->nip_guru)) {
+            return redirect()->back()->withInput()
+                ->withErrors(['nip_guru' => AkunStaf::pesanNipTerpakai((string) $guru->nip_guru)]);
         }
+
+        try {
+            DB::transaction(function () use ($kp, $guru, $data, $guruBerganti) {
+                $username = $kp->username;
+
+                // Orangnya diganti: akun login ikut ke guru baru dan password dikembalikan ke awal,
+                // supaya guru baru tidak memakai password ketua program sebelumnya.
+                if ($guruBerganti) {
+                    $user = User::where('username', $kp->username)->first();
+
+                    if ($user) {
+                        $user->update([
+                            'username' => AkunStaf::buatUsername($guru->nama_guru, $guru->nip_guru),
+                            'email'    => AkunStaf::buatEmail($guru->nama_guru, $guru->nip_guru),
+                            'password' => Hash::make(AkunStaf::PASSWORD_DEFAULT),
+                        ]);
+                        $username = $user->username;
+                    }
+                }
+
+                ketua_program::where('nip_kaprog', $kp->nip_kaprog)->update([
+                    'nip_kaprog'         => $guru->nip_guru,
+                    'nama_ketua_program' => $guru->nama_guru,
+                    'id_jurusan'         => $data['id_jurusan'],
+                    'username'           => $username,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            return redirect()->back()->withInput()
+                ->with('error', AkunStaf::pesanGagal($e, 'Ubah ketua program'));
+        }
+
+        $pesan = 'Data berhasil diperbarui.';
+        if ($guruBerganti) {
+            $pesan .= ' Login dengan NIP guru baru, password awal: ' . AkunStaf::PASSWORD_DEFAULT;
+        }
+
+        return redirect()->route('kaprog.index')->with('success', $pesan);
     }
 
     public function destroy($nip_kaprog)
@@ -144,7 +186,7 @@ class KetuaProgramController extends Controller
             User::where('username', $kp->username)->delete();
             $kp->delete();
 
-            return redirect()->route('kaprog.index')->with('success', 'Data Ketua Program berhasil dihapus.');
+            return redirect()->route('kaprog.index')->with('success', 'Data Ketua Program berhasil dihapus. Data guru tetap ada.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Terjadi kesalahan');
         }
@@ -183,13 +225,34 @@ class KetuaProgramController extends Controller
         try {
             $request->validate([
                 'file' => 'required|mimes:xlsx,xls,csv|max:10240',
+            ], [
+                'file.required' => 'Pilih file Excel terlebih dahulu.',
+                'file.mimes'    => 'Format file harus .xlsx, .xls, atau .csv.',
+                'file.max'      => 'Ukuran file maksimal 10MB.',
             ]);
 
-            Excel::import(new Ketua_Program_Import, $request->file('file'));
+            $import = new Ketua_Program_Import;
+            Excel::import($import, $request->file('file'));
 
-            return redirect()->back()->with('success', 'Data Ketua Program berhasil diimport!');
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan');
+            $redirect = redirect()->back();
+
+            if ($import->hasImported()) {
+                $redirect->with('success', 'Import selesai: ' . $import->summary());
+            } else {
+                $redirect->with('error', 'Tidak ada data yang diimport. ' . $import->summary());
+            }
+
+            if (!empty($import->errors)) {
+                $redirect->with('import_errors', $import->errors);
+            }
+
+            return $redirect;
+        } catch (ValidationException $e) {
+            return redirect()->back()->with('error', $e->validator->errors()->first());
+        } catch (\Throwable $e) {
+            Log::error('Import ketua program gagal: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', AkunStaf::pesanGagal($e, 'Import ketua program'));
         }
     }
 }

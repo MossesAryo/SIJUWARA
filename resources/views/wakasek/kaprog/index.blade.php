@@ -10,7 +10,7 @@
         <div class="flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-bold gradient-text">Data Ketua Program</h1>
-                <p class="text-gray-600 mt-1">Kelola data ketua program</p>
+                <p class="text-gray-600 mt-1">Ketua program dipilih dari <a href="{{ route('guru.index') }}" class="text-blue-600 underline">data guru</a></p>
             </div>
             <button onclick="openCreateModal()"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
@@ -34,6 +34,23 @@
                     <i class="bi bi-exclamation-triangle-fill text-red-600"></i>
                     {{ session('error') }}
                 </p>
+            </div>
+        @endif
+
+        @if (session('import_errors'))
+            <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg">
+                <p class="text-sm font-semibold flex items-center gap-2">
+                    <i class="bi bi-info-circle-fill text-yellow-600"></i>
+                    Baris yang dilewati saat import ({{ count(session('import_errors')) }}):
+                </p>
+                <ul class="mt-2 text-sm list-disc list-inside space-y-0.5 max-h-40 overflow-y-auto">
+                    @foreach (array_slice(session('import_errors'), 0, 50) as $err)
+                        <li>{{ $err }}</li>
+                    @endforeach
+                </ul>
+                @if (count(session('import_errors')) > 50)
+                    <p class="mt-1 text-xs">...dan {{ count(session('import_errors')) - 50 }} baris lainnya.</p>
+                @endif
             </div>
         @endif
 
@@ -138,14 +155,18 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center gap-1">
-                                        <button
-                                            onclick="openEditModal('{{ $item->nip_kaprog }}', '{{ $item->nama_ketua_program }}', '{{ $item->id_jurusan }}')"
+                                        <button type="button"
+                                            data-nip="{{ $item->nip_kaprog }}"
+                                            data-jurusan="{{ $item->id_jurusan }}"
+                                            onclick="openEditModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full"
                                             title="Edit Ketua Program">
                                             <i class="bi bi-pencil-square text-sm"></i>
                                         </button>
-                                        <button
-                                            onclick="openDeleteModal('{{ $item->nip_kaprog }}', '{{ $item->nama_ketua_program }}')"
+                                        <button type="button"
+                                            data-nip="{{ $item->nip_kaprog }}"
+                                            data-nama="{{ $item->nama_ketua_program }}"
+                                            onclick="openDeleteModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full"
                                             title="Hapus Ketua Program">
                                             <i class="bi bi-trash text-sm"></i>
@@ -155,7 +176,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="px-6 py-12 text-center">
+                                <td colspan="5" class="px-6 py-12 text-center">
                                     <div
                                         class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                         <i class="bi bi-people text-3xl text-gray-400"></i>

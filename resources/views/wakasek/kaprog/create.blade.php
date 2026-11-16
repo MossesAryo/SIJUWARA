@@ -1,4 +1,7 @@
-@php $bukaCreate = old('_form') === 'create'; @endphp
+@php
+    $bukaCreate = old('_form') === 'create';
+    $guruTersedia = $daftar_guru->reject(fn ($g) => in_array((string) $g->nip_guru, $nip_kaprog_terpakai, true));
+@endphp
 
 <!-- Modal Create -->
 <div id="modal-create" class="fixed inset-0 bg-black bg-opacity-40 modal-overlay flex items-center justify-center {{ $bukaCreate ? '' : 'hidden' }}">
@@ -28,19 +31,27 @@
 
             <div class="space-y-4">
                 <div>
-                    <label for="nip_kaprog" class="block text-sm font-medium text-gray-700 mb-1">NIP</label>
-                    <input type="text" id="nip_kaprog" name="nip_kaprog" required
-                        inputmode="numeric" maxlength="30"
-                        value="{{ $bukaCreate ? old('nip_kaprog') : '' }}"
-                        placeholder="1907825673"
+                    <label for="nip_guru" class="block text-sm font-medium text-gray-700 mb-1">Guru</label>
+                    <select id="nip_guru" name="nip_guru" required
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                </div>
-                <div>
-                    <label for="nama_ketua_program" class="block text-sm font-medium text-gray-700 mb-1">Nama Ketua Program</label>
-                    <input type="text" id="nama_ketua_program" name="nama_ketua_program" required maxlength="255"
-                        value="{{ $bukaCreate ? old('nama_ketua_program') : '' }}"
-                        placeholder="Robi Jainud"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">-- Pilih Guru --</option>
+                        @foreach ($guruTersedia as $g)
+                            <option value="{{ $g->nip_guru }}"
+                                {{ $bukaCreate && (string) old('nip_guru') === (string) $g->nip_guru ? 'selected' : '' }}>
+                                {{ $g->nama_guru }} ({{ $g->nip_guru }})
+                            </option>
+                        @endforeach
+                    </select>
+                    @if ($guruTersedia->isEmpty())
+                        <p class="text-xs text-amber-600 mt-1">
+                            Belum ada guru yang bisa dipilih. Tambah atau import dulu di menu
+                            <a href="{{ route('guru.index') }}" class="underline font-medium">Guru</a>.
+                        </p>
+                    @else
+                        <p class="text-xs text-gray-500 mt-1">
+                            Ketua program dipilih dari data guru. NIP dan nama mengikuti data guru.
+                        </p>
+                    @endif
                 </div>
                 <div class="space-y-2">
                     <label class="block text-sm font-semibold text-gray-700 flex items-center gap-2">

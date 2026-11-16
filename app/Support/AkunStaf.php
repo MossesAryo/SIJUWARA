@@ -55,6 +55,28 @@ class AkunStaf
         return self::nipTerpakai($nipBaru);
     }
 
+    /**
+     * Pesan yang menjelaskan NIP itu sudah dipakai sebagai apa (wakasek, guru BK, ketua program, wali kelas).
+     * Dipakai saat guru dipilih sebagai ketua program tetapi NIP-nya sudah punya akun lain.
+     */
+    public static function pesanNipTerpakai(string $nip): string
+    {
+        $sebagai = [
+            'wakasek'       => ['nip_wakasek', 'wakasek'],
+            'guru_bk'       => ['nip_bk', 'guru BK'],
+            'ketua_program' => ['nip_kaprog', 'ketua program'],
+            'walikelas'     => ['nip_walikelas', 'wali kelas'],
+        ];
+
+        foreach ($sebagai as $tabel => [$kolom, $label]) {
+            if (DB::table($tabel)->where($kolom, $nip)->exists()) {
+                return "NIP ini sudah terdaftar sebagai {$label}.";
+            }
+        }
+
+        return 'NIP sudah terdaftar pada data guru/pegawai lain.';
+    }
+
     /** Username = nama. Kalau sudah dipakai, ditambah NIP. */
     public static function buatUsername(string $nama, string $nip): string
     {
