@@ -14,11 +14,17 @@
                     NIP dan nama dipilih dari data ini.
                 </p>
             </div>
+            @if (auth()->user()->isSuperAdmin())
             <button type="button" onclick="openCreateModal()"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
                 <i class="bi bi-plus-lg"></i>
                 Tambah Guru
             </button>
+            @else
+                <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 text-gray-500 text-sm">
+                    <i class="bi bi-lock"></i> Hanya Super Admin yang dapat mengubah
+                </span>
+            @endif
         </div>
 
         @if (session('success'))
@@ -151,6 +157,7 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
+                                    @if (auth()->user()->isSuperAdmin())
                                     <div class="flex items-center gap-1">
                                         <button type="button"
                                             data-nip="{{ $item->nip_guru }}"
@@ -170,6 +177,9 @@
                                             <i class="bi bi-trash text-sm"></i>
                                         </button>
                                     </div>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 text-xs text-gray-400"><i class="bi bi-lock"></i> Super Admin</span>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

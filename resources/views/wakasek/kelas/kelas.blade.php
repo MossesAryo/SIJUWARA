@@ -147,7 +147,7 @@
                                 <td class="px-6 py-4">
                                     @php
                                         $wali = $item->walikelas && $item->walikelas->nama_walikelas ? $item->walikelas : null;
-                                        $bisaAturWali = auth()->user()->role == 1;
+                                        $bisaAturWali = auth()->user()->isSuperAdmin();
                                     @endphp
 
                                     @if ($bisaAturWali)
