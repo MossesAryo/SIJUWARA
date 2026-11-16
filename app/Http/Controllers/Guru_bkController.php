@@ -110,9 +110,16 @@ class Guru_bkController extends Controller
     {
         try {
             $request->validate([
-                'nip_bk' => 'required',
+                'nip_bk' => ['required', 'regex:/^\d{5,18}$/'],
                 'nama_guru_bk' => 'required',
+            ], [
+                'nip_bk.regex' => 'NIP harus berupa angka 5 sampai 18 digit.',
             ]);
+
+            if (AkunStaf::nipTerpakaiOlehLain($request->nip_bk, $nip_bk)) {
+                return redirect()->back()->withInput()
+                    ->withErrors(['nip_bk' => 'NIP sudah dipakai oleh pengguna lain.']);
+            }
 
             $bk = guru_bk::where('nip_bk', $nip_bk)->firstOrFail();
 

@@ -40,6 +40,21 @@ class AkunStaf
             || DB::table('walikelas')->where('nip_walikelas', $nip)->exists();
     }
 
+    /**
+     * Untuk edit NIP: true bila NIP baru (yang berbeda dari NIP lama) sudah dipakai siapa pun.
+     * NIP dicari berurutan di 4 tabel saat login, jadi tidak boleh kembar lintas role.
+     */
+    public static function nipTerpakaiOlehLain($nipBaru, $nipLama): bool
+    {
+        $nipBaru = self::bersihkanNip($nipBaru);
+
+        if ($nipBaru === (string) $nipLama) {
+            return false;
+        }
+
+        return self::nipTerpakai($nipBaru);
+    }
+
     /** Username = nama. Kalau sudah dipakai, ditambah NIP. */
     public static function buatUsername(string $nama, string $nip): string
     {

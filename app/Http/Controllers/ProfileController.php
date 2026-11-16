@@ -20,11 +20,18 @@ class ProfileController extends Controller
     {
        $data = $request->validate([
         'nama_wakasek' => 'required|string|max:255',
-        'nip_wakasek' => 'required|string|max:20',
+        'nip_wakasek' => ['required', 'regex:/^\d{5,18}$/'],
         'email' => 'required|email',
+    ], [
+        'nip_wakasek.regex' => 'NIP harus berupa angka 5 sampai 18 digit.',
     ]);
 
     $user = auth()->user();
+
+    if (\App\Support\AkunStaf::nipTerpakaiOlehLain($data['nip_wakasek'], $user->wakasek->nip_wakasek)) {
+        return redirect()->back()->withInput()
+            ->withErrors(['nip_wakasek' => 'NIP sudah dipakai oleh pengguna lain.']);
+    }
 
     $user->update([
         'email' => $data['email'],

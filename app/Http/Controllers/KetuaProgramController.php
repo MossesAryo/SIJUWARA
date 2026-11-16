@@ -118,6 +118,11 @@ class KetuaProgramController extends Controller
                 'id_jurusan' => 'required',
             ]);
 
+            if (AkunStaf::nipTerpakaiOlehLain($request->nip_kaprog, $nip_kaprog)) {
+                return redirect()->back()->withInput()
+                    ->withErrors(['nip_kaprog' => 'NIP sudah dipakai oleh pengguna lain.']);
+            }
+
             $kp = ketua_program::where('nip_kaprog', $nip_kaprog)->firstOrFail();
 
             $kp->update([
