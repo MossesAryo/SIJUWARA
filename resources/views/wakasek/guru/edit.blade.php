@@ -51,7 +51,7 @@
                         <select id="edit_jabatan" name="jabatan" onchange="toggleJabatanEdit()"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                             <option value="">Tanpa jabatan</option>
-                            @foreach (\App\Models\Guru::DAFTAR_JABATAN as $kode => $label)
+                            @foreach (\App\Models\guru::DAFTAR_JABATAN as $kode => $label)
                                 <option value="{{ $kode }}" {{ $bukaEdit && old('jabatan') === $kode ? 'selected' : '' }}>
                                     {{ $label }}
                                 </option>
