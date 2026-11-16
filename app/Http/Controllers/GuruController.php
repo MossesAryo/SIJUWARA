@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\Guru_ExportExcel;
 use App\Exports\Guru_Template;
 use App\Imports\Guru_Import;
-use App\Models\Guru;
+use App\Models\guru;
 use App\Models\guru_bk;
 use App\Models\jurusan;
 use App\Models\kelas;
