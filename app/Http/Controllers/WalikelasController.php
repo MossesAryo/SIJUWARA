@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\guru;
 use App\Models\walikelas;
 use App\Models\kelas;
 use App\Models\User;
@@ -13,6 +14,7 @@ use App\Exports\Walikelas_Template;
 use App\Imports\Walikelas_Import;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -20,7 +22,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Manajemen data wali kelas.
- * CRUD wali kelas dan kaitan dengan kelas.
+ * Wali kelas dipilih dari data guru (menu Guru), bukan diketik ulang:
+ * NIP dan nama mengikuti data guru. CRUD wali kelas dan kaitan dengan kelas.
  */
 class WalikelasController extends Controller
 {
@@ -67,7 +70,11 @@ class WalikelasController extends Controller
         $walikelas = $query->orderBy('nama_walikelas')->paginate(10)
                       ->appends($request->only(['search', 'kelas']));
 
-        return view('wakasek.walikelas.index', compact('walikelas', 'kelas'));
+        // Pilihan guru untuk form tambah/edit. Guru yang sudah punya jabatan ditandai.
+        $daftar_guru = guru::orderBy('nama_guru')->get();
+        $peta_jabatan = guru::petaJabatan();
+
+        return view('wakasek.walikelas.index', compact('walikelas', 'kelas', 'daftar_guru', 'peta_jabatan'));
     }
 
     /**
@@ -84,50 +91,48 @@ class WalikelasController extends Controller
     public function store(Request $request)
     {
         $request->merge([
-            'nip_walikelas'  => AkunStaf::bersihkanNip($request->input('nip_walikelas')),
-            'nama_walikelas' => AkunStaf::rapikanNama($request->input('nama_walikelas')),
+            'nip_guru' => AkunStaf::bersihkanNip($request->input('nip_guru')),
         ]);
 
         // Validasi di luar try/catch supaya pesan per kolom tampil di form.
         // id_kelas boleh kosong (guru tanpa kelas, disimpan sebagai NULL).
         $data = $request->validate([
-            'nip_walikelas' => [
+            'nip_guru' => [
                 'required',
-                'regex:/^\d{1,18}$/',
+                Rule::exists('guru', 'nip_guru'),
                 function ($attribute, $value, \Closure $fail) {
                     if (AkunStaf::nipTerpakai((string) $value)) {
-                        $fail('NIP sudah terdaftar pada data guru/pegawai lain.');
+                        $fail(AkunStaf::pesanNipTerpakai((string) $value));
                     }
                 },
             ],
-            'nama_walikelas' => ['required', 'string', 'max:255'],
             'id_kelas' => [
                 'nullable',
                 Rule::exists('kelas', 'id_kelas'),
                 Rule::unique('walikelas', 'id_kelas'),
             ],
         ], [
-            'nip_walikelas.required'  => 'NIP wajib diisi.',
-            'nip_walikelas.regex'     => 'NIP harus berupa angka (maksimal 18 digit).',
-            'nama_walikelas.required' => 'Nama walikelas wajib diisi.',
-            'nama_walikelas.max'      => 'Nama walikelas maksimal 255 karakter.',
-            'id_kelas.exists'         => 'Kelas yang dipilih tidak valid.',
-            'id_kelas.unique'         => 'Kelas ini sudah memiliki walikelas.',
+            'nip_guru.required' => 'Guru wajib dipilih.',
+            'nip_guru.exists'   => 'Guru yang dipilih tidak ada di data guru.',
+            'id_kelas.exists'   => 'Kelas yang dipilih tidak valid.',
+            'id_kelas.unique'   => 'Kelas ini sudah memiliki walikelas.',
         ]);
+
+        $guru = guru::where('nip_guru', $data['nip_guru'])->firstOrFail();
 
         try {
             // Akun user dan data walikelas disimpan bersamaan atau tidak sama sekali.
-            DB::transaction(function () use ($data) {
+            DB::transaction(function () use ($guru, $data) {
                 $user = AkunStaf::buatUser(
-                    $data['nama_walikelas'],
-                    $data['nip_walikelas'],
+                    $guru->nama_guru,
+                    $guru->nip_guru,
                     User::ROLE_WALIKELAS
                 );
 
                 walikelas::create([
-                    'nip_walikelas'  => $data['nip_walikelas'],
+                    'nip_walikelas'  => $guru->nip_guru,
                     'username'       => $user->username,
-                    'nama_walikelas' => $data['nama_walikelas'],
+                    'nama_walikelas' => $guru->nama_guru,
                     'id_kelas'       => $data['id_kelas'] ?? null,
                 ]);
             });
@@ -191,18 +196,23 @@ class WalikelasController extends Controller
     {
         // Validasi di luar try/catch supaya pesan per kolom tampil, bukan "Terjadi kesalahan".
         $data = $request->validate([
-            'nip_walikelas'  => 'required|integer',
-            'username'       => 'required|string',
-            'id_kelas'       => ['nullable', 'string', Rule::exists('kelas', 'id_kelas')],
-            'nama_walikelas' => 'required|string|max:255',
+            'nip_guru' => ['required', Rule::exists('guru', 'nip_guru')],
+            'username' => 'required|string',
+            'id_kelas' => ['nullable', 'string', Rule::exists('kelas', 'id_kelas')],
         ], [
-            'id_kelas.exists' => 'Kelas yang dipilih tidak valid.',
+            'nip_guru.required' => 'Guru wajib dipilih.',
+            'nip_guru.exists'   => 'Guru yang dipilih tidak ada di data guru.',
+            'id_kelas.exists'   => 'Kelas yang dipilih tidak valid.',
         ]);
 
-        if (AkunStaf::nipTerpakaiOlehLain($data['nip_walikelas'], $nip_walikelas)) {
+        $guru = guru::where('nip_guru', $data['nip_guru'])->firstOrFail();
+
+        if (AkunStaf::nipTerpakaiOlehLain($guru->nip_guru, $nip_walikelas)) {
             return redirect()->back()->withInput()
-                ->withErrors(['nip_walikelas' => 'NIP sudah dipakai oleh pengguna lain.']);
+                ->withErrors(['nip_guru' => AkunStaf::pesanNipTerpakai((string) $guru->nip_guru)]);
         }
+
+        $guruBerganti = (string) $guru->nip_guru !== (string) $nip_walikelas;
 
         try {
             $walikelas = Walikelas::where('nip_walikelas', $nip_walikelas)->firstOrFail();
@@ -211,25 +221,35 @@ class WalikelasController extends Controller
 
             $digantikan = null;
 
-            DB::transaction(function () use ($data, $walikelas, $user, $idKelas, &$digantikan) {
+            DB::transaction(function () use ($data, $guru, $guruBerganti, $walikelas, $user, $idKelas, &$digantikan) {
                 if ($user) {
-                    $user->update([
-                        'username' => $data['username'],
-                        'email'    => $data['nama_walikelas'] . '@gmail.com',
-                    ]);
+                    if ($guruBerganti) {
+                        // Orangnya diganti: akun login ikut ke guru baru dan password dikembalikan ke awal,
+                        // supaya guru baru tidak memakai password wali kelas sebelumnya.
+                        $user->update([
+                            'username' => AkunStaf::buatUsername($guru->nama_guru, $guru->nip_guru),
+                            'email'    => AkunStaf::buatEmail($guru->nama_guru, $guru->nip_guru),
+                            'password' => Hash::make(AkunStaf::PASSWORD_DEFAULT),
+                        ]);
+                    } else {
+                        $user->update(['username' => $data['username']]);
+                    }
                 }
 
                 $walikelas->update([
-                    'nip_walikelas'  => $data['nip_walikelas'],
+                    'nip_walikelas'  => $guru->nip_guru,
                     'username'       => $user->username ?? $walikelas->username,
-                    'nama_walikelas' => $data['nama_walikelas'],
+                    'nama_walikelas' => $guru->nama_guru,
                 ]);
 
                 // Kelas diatur terpisah: kalau sudah ada wali lain, wali itu dilepas.
-                $digantikan = self::pasangkanKelas((string) $data['nip_walikelas'], $idKelas);
+                $digantikan = self::pasangkanKelas((string) $guru->nip_guru, $idKelas);
             });
 
             $pesan = 'Data berhasil diperbarui.';
+            if ($guruBerganti) {
+                $pesan .= ' Login dengan NIP guru baru, password awal: ' . AkunStaf::PASSWORD_DEFAULT . '.';
+            }
             if ($digantikan) {
                 $pesan .= " {$digantikan} dilepas dari kelas tersebut karena kelas hanya boleh punya satu wali.";
             }

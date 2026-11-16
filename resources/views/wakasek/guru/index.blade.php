@@ -5,8 +5,14 @@
         <!-- Header -->
         <div class="flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold gradient-text">Data Guru</h1>
-                <p class="text-gray-600 mt-1">Kelola data guru. Ketua program dipilih dari data ini.</p>
+                <h1 class="text-2xl font-bold gradient-text">Data Guru &amp; Staf TU</h1>
+                <p class="text-gray-600 mt-1">
+                    Import data guru dan staf TU di sini, lalu petakan jabatannya di menu
+                    <a href="{{ route('walikelas.index') }}" class="text-blue-600 underline">Wali Kelas</a>,
+                    <a href="{{ route('gurubk.index') }}" class="text-blue-600 underline">Guru BK</a>, atau
+                    <a href="{{ route('kaprog.index') }}" class="text-blue-600 underline">Ketua Program</a>.
+                    NIP dan nama dipilih dari data ini.
+                </p>
             </div>
             <button type="button" onclick="openCreateModal()"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
@@ -88,7 +94,7 @@
                                 <div class="flex items-center gap-2"><i class="bi bi-person text-gray-400"></i> Nama Guru</div>
                             </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                <div class="flex items-center gap-2"><i class="bi bi-mortarboard text-gray-400"></i> Ketua Program</div>
+                                <div class="flex items-center gap-2"><i class="bi bi-diagram-3 text-gray-400"></i> Jabatan</div>
                             </th>
                             <th class="px-5 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2"><i class="bi bi-gear text-gray-400"></i> Aksi</div>
@@ -113,12 +119,15 @@
                                     <div class="text-sm font-semibold text-gray-900">{{ $item->nama_guru }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    @if ($item->kaprog)
+                                    @if ($item->jabatan)
                                         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
-                                            <i class="bi bi-mortarboard"></i> Ya
+                                            <i class="bi bi-diagram-3"></i> {{ $item->jabatan }}
                                         </span>
+                                        @if ($item->jabatan_detail)
+                                            <span class="ml-1 text-xs text-gray-500">{{ $item->jabatan_detail }}</span>
+                                        @endif
                                     @else
-                                        <span class="text-sm text-gray-400">-</span>
+                                        <span class="text-sm text-gray-400">Belum dipetakan</span>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -126,7 +135,7 @@
                                         <button type="button"
                                             data-nip="{{ $item->nip_guru }}"
                                             data-nama="{{ $item->nama_guru }}"
-                                            data-kaprog="{{ $item->kaprog ? 1 : 0 }}"
+                                            data-jabatan="{{ $item->jabatan }}"
                                             onclick="openEditModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full"
                                             title="Edit Guru">
