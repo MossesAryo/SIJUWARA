@@ -7,11 +7,8 @@
             <div>
                 <h1 class="text-2xl font-bold gradient-text">Data Guru &amp; Staf TU</h1>
                 <p class="text-gray-600 mt-1">
-                    Import data guru dan staf TU di sini, lalu petakan jabatannya di menu
-                    <a href="{{ route('walikelas.index') }}" class="text-blue-600 underline">Wali Kelas</a>,
-                    <a href="{{ route('gurubk.index') }}" class="text-blue-600 underline">Guru BK</a>, atau
-                    <a href="{{ route('kaprog.index') }}" class="text-blue-600 underline">Ketua Program</a>.
-                    NIP dan nama dipilih dari data ini.
+                    Kelola data guru dan staf TU (NIP dan nama) di sini. Tugas tambahan (Wakasek, Guru BK,
+                    Wali Kelas, Ketua Program) hanya ditampilkan dan diatur oleh Super Admin di menu Manajemen User.
                 </p>
             </div>
             <button type="button" onclick="openCreateModal()"
@@ -114,7 +111,7 @@
                                 <div class="flex items-center gap-2"><i class="bi bi-person text-gray-400"></i> Nama Guru</div>
                             </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                <div class="flex items-center gap-2"><i class="bi bi-diagram-3 text-gray-400"></i> Jabatan</div>
+                                <div class="flex items-center gap-2"><i class="bi bi-diagram-3 text-gray-400"></i> Tugas Tambahan</div>
                             </th>
                             <th class="px-5 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 <div class="flex items-center gap-2"><i class="bi bi-gear text-gray-400"></i> Aksi</div>
@@ -161,7 +158,7 @@
                                             data-id-jurusan="{{ optional($item->kaprog)->id_jurusan }}"
                                             onclick="openEditModal(this)"
                                             class="action-btn inline-flex items-center justify-center w-9 h-9 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full"
-                                            title="Edit Guru & Jabatan">
+                                            title="Edit Guru">
                                             <i class="bi bi-pencil-square text-sm"></i>
                                         </button>
                                         <button type="button"

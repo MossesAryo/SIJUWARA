@@ -13,28 +13,54 @@
         ];
     @endphp
 
+    @php
+        $adaTabGuru = ($tab ?? 'akun') === 'guru';
+    @endphp
+
     <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h2 class="text-lg font-bold text-gray-900">Manajemen User</h2>
-            <p class="text-sm text-gray-400">Kelola akun semua role (Wakasek, Guru BK, Wali Kelas, Ketua Program, dan Super Admin) dari satu halaman.</p>
+            <p class="text-sm text-gray-400">
+                @if ($adaTabGuru)
+                    Master data guru dan staf TU beserta tugas tambahannya (Wakasek, Guru BK, Wali Kelas, Ketua Program).
+                @else
+                    Kelola akun semua tugas tambahan (Wakasek, Guru BK, Wali Kelas, Ketua Program, dan Super Admin) dari satu halaman.
+                @endif
+            </p>
         </div>
-        <a href="{{ route('superadmin.user.create', in_array($roleDipilih, [1, 2, 3, 4, 5], true) ? ['role' => $roleDipilih] : []) }}"
-            class="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
-            style="background: linear-gradient(135deg, #4a7ab5, #1e3a5f);">
-            <i class="bi bi-plus-lg"></i> Tambah Akun
+        @if ($adaTabGuru)
+            <button type="button" onclick="openCreateModal()"
+                class="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
+                style="background: linear-gradient(135deg, #4a7ab5, #1e3a5f);">
+                <i class="bi bi-plus-lg"></i> Tambah Guru
+            </button>
+        @else
+            <a href="{{ route('superadmin.user.create', in_array($roleDipilih, [1, 2, 3, 4, 5], true) ? ['role' => $roleDipilih] : []) }}"
+                class="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
+                style="background: linear-gradient(135deg, #4a7ab5, #1e3a5f);">
+                <i class="bi bi-plus-lg"></i> Tambah Akun
+            </a>
+        @endif
+    </div>
+
+    {{-- Tab: Akun Pengguna | Master Data Guru --}}
+    <div class="mb-4 flex gap-1 border-b border-gray-200">
+        <a href="{{ route('superadmin.user.index') }}"
+            class="-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium {{ $adaTabGuru ? 'border-transparent text-gray-500 hover:text-gray-700' : 'border-blue-600 text-blue-600' }}">
+            <i class="bi bi-people"></i> Akun Pengguna
+            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ number_format($totalSemua) }}</span>
+        </a>
+        <a href="{{ route('superadmin.user.index', ['tab' => 'guru']) }}"
+            class="-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium {{ $adaTabGuru ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+            <i class="bi bi-person-vcard"></i> Master Data Guru
+            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ number_format($totalGuru) }}</span>
         </a>
     </div>
 
-    <div class="mb-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        <i class="bi bi-info-circle mt-0.5"></i>
-        <span>
-            Semua role dibuat lewat tombol Tambah Akun, termasuk Wakasek dan Super Admin.
-            Role, NIP, dan username dikunci setelah akun dibuat karena menjadi kunci relasi data.
-            Menghapus akun akan ikut menghapus riwayat kerjanya, jadi periksa dulu di halaman konfirmasi.
-        </span>
-    </div>
-
-    {{-- Filter role --}}
+    @if ($adaTabGuru)
+        @include('superadmin.user._guru')
+    @else
+    {{-- Filter tugas tambahan --}}
     <div class="mb-4 flex flex-wrap gap-2">
         <a href="{{ route('superadmin.user.index', array_filter(['q' => $q])) }}"
             class="rounded-full border px-3 py-1.5 text-sm {{ $roleDipilih === null ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50' }}">
@@ -75,7 +101,7 @@
                         <th class="px-4 py-3">Email</th>
                         <th class="px-4 py-3">NIP</th>
                         <th class="px-4 py-3">Nama Profil</th>
-                        <th class="px-4 py-3">Role</th>
+                        <th class="px-4 py-3">Tugas Tambahan</th>
                         <th class="px-4 py-3">Data Profil</th>
                         <th class="px-4 py-3 text-right">Aksi</th>
                     </tr>
@@ -142,4 +168,5 @@
             <div class="border-t border-gray-100 p-4">{{ $pengguna->links() }}</div>
         @endif
     </div>
+    @endif
 @endsection

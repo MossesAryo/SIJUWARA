@@ -35,6 +35,23 @@ class GuruController extends Controller
 {
     public function index(Request $request)
     {
+        // Super Admin mengelola master data guru dari tab di Manajemen User.
+        if ($this->superAdmin()) {
+            return redirect()->route('superadmin.user.index', array_merge(
+                $request->only(['search', 'jabatan', 'sort', 'dir', 'page']),
+                ['tab' => 'guru']
+            ));
+        }
+
+        return view('wakasek.guru.index', $this->dataIndex($request));
+    }
+
+    /**
+     * Data daftar guru (pencarian, filter jabatan, sortir, paginasi).
+     * Dipakai halaman Wakasek dan tab Master Data Guru di Manajemen User Super Admin.
+     */
+    public function dataIndex(Request $request): array
+    {
         $query = Guru::with(['wakasek', 'gurubk', 'kaprog.jurusan', 'walikelas.kelas']);
 
         if ($request->filled('search')) {
@@ -99,9 +116,9 @@ class GuruController extends Controller
                 break;
         }
 
-        // Pagination mempertahankan search, jabatan, sort, dan dir
+        // Pagination mempertahankan tab, search, jabatan, sort, dan dir
         $guru = $query->paginate(10)
-            ->appends($request->only(['search', 'jabatan', 'sort', 'dir']));
+            ->appends($request->only(['tab', 'search', 'jabatan', 'sort', 'dir']));
 
         // Pilihan untuk form jabatan di modal edit
         $daftar_kelas = kelas::with('walikelas')
@@ -110,7 +127,21 @@ class GuruController extends Controller
             ->get();
         $daftar_jurusan = jurusan::all();
 
-        return view('wakasek.guru.index', compact('guru', 'daftar_kelas', 'daftar_jurusan'));
+        return compact('guru', 'daftar_kelas', 'daftar_jurusan');
+    }
+
+    /** Apakah yang sedang login Super Admin (satu-satunya yang boleh mengubah tugas tambahan guru). */
+    private function superAdmin(): bool
+    {
+        return Auth::check() && (int) Auth::user()->role === User::ROLE_SUPER_ADMIN;
+    }
+
+    /** Halaman daftar guru sesuai role: tab Manajemen User (Super Admin) atau halaman Wakasek. */
+    private function halamanGuru()
+    {
+        return $this->superAdmin()
+            ? redirect()->route('superadmin.user.index', ['tab' => 'guru'])
+            : redirect()->route('guru.index');
     }
 
     public function store(Request $request)
@@ -138,7 +169,7 @@ class GuruController extends Controller
                 ->with('error', AkunStaf::pesanGagal($e, 'Tambah guru'));
         }
 
-        return redirect()->route('guru.index')->with('success', 'Data guru berhasil ditambahkan.');
+        return $this->halamanGuru()->with('success', 'Data guru berhasil ditambahkan.');
     }
 
     public function update(Request $request, $nip)
@@ -163,7 +194,7 @@ class GuruController extends Controller
             'nip_guru.regex'      => 'NIP harus berupa angka (maksimal 18 digit).',
             'nama_guru.required'  => 'Nama guru wajib diisi.',
             'nama_guru.max'       => 'Nama guru maksimal 255 karakter.',
-            'jabatan.in'          => 'Jabatan yang dipilih tidak valid.',
+            'jabatan.in'          => 'Tugas tambahan yang dipilih tidak valid.',
             'id_kelas.exists'     => 'Kelas yang dipilih tidak valid.',
             'id_kelas.not_in'     => 'Kelas alumni tidak bisa dipilih.',
             'id_jurusan.required' => 'Program / kompetensi keahlian wajib dipilih untuk Ketua Program.',
@@ -183,12 +214,13 @@ class GuruController extends Controller
             $jabatan = Guru::petaJabatan()[(string) $guru->nip_guru] ?? null;
             if ($jabatan) {
                 return redirect()->back()->withInput()
-                    ->withErrors(['nip_guru' => "NIP tidak bisa diubah karena guru ini menjabat sebagai {$jabatan}. Hapus jabatannya dulu."]);
+                    ->withErrors(['nip_guru' => "NIP tidak bisa diubah karena guru ini memiliki tugas tambahan {$jabatan}. Hapus tugas tambahannya dulu."]);
             }
         }
 
-        // Form lama tanpa kolom jabatan: jabatan dibiarkan seperti sekarang.
-        $ubahJabatan = $request->has('jabatan');
+        // Tugas tambahan hanya bisa diubah oleh Super Admin (lewat Manajemen User).
+        // Dari Wakasek, kolom jabatan diabaikan walaupun dikirim: yang berubah hanya NIP dan nama.
+        $ubahJabatan = $request->has('jabatan') && $this->superAdmin();
         $catatanJabatan = null;
 
         try {
@@ -232,7 +264,7 @@ class GuruController extends Controller
             $pesan .= ' ' . $catatanJabatan;
         }
 
-        return redirect()->route('guru.index')->with('success', $pesan);
+        return $this->halamanGuru()->with('success', $pesan);
     }
 
     public function destroy($nip)
@@ -243,12 +275,12 @@ class GuruController extends Controller
             $jabatan = Guru::petaJabatan()[(string) $guru->nip_guru] ?? null;
             if ($jabatan) {
                 return redirect()->back()
-                    ->with('error', "Guru tidak dapat dihapus karena menjabat sebagai {$jabatan}. Hapus data {$jabatan} terlebih dahulu.");
+                    ->with('error', "Guru tidak dapat dihapus karena memiliki tugas tambahan {$jabatan}. Hapus data {$jabatan} terlebih dahulu.");
             }
 
             $guru->delete();
 
-            return redirect()->route('guru.index')->with('success', 'Data guru berhasil dihapus.');
+            return $this->halamanGuru()->with('success', 'Data guru berhasil dihapus.');
         } catch (\Throwable $e) {
             return redirect()->back()->with('error', AkunStaf::pesanGagal($e, 'Hapus guru'));
         }
@@ -274,13 +306,14 @@ class GuruController extends Controller
     }
 
     /**
-     * Tambah, ubah, atau hapus jabatan seorang guru (dipanggil di dalam transaksi).
+     * Tambah, ubah, atau hapus tugas tambahan seorang guru (dipanggil di dalam transaksi).
+     * Dipakai juga oleh Manajemen User Super Admin saat mengganti tugas tambahan sebuah akun.
      * Jabatan baru membuat akun login (password awal), jabatan yang dihapus ikut menghapus akunnya.
      * Pelanggaran aturan dilempar sebagai DomainException supaya semua perubahan dibatalkan.
      *
      * @return string|null catatan untuk pesan sukses
      */
-    private function terapkanJabatan(string $nip, string $nama, string $target, ?string $idKelas, ?string $idJurusan): ?string
+    public function terapkanJabatan(string $nip, string $nama, string $target, ?string $idKelas, ?string $idJurusan): ?string
     {
         $label = Guru::DAFTAR_JABATAN;
         $sekarang = $this->jabatanSekarang($nip);
@@ -303,7 +336,7 @@ class GuruController extends Controller
         // Hapus jabatan lama (kalau ada)
         if ($sekarang !== '') {
             $this->hapusJabatan($nip, $sekarang);
-            $catatan[] = "Jabatan {$label[$sekarang]} dihapus dan akun loginnya ikut dihapus.";
+            $catatan[] = "Tugas tambahan {$label[$sekarang]} dihapus dan akun loginnya ikut dihapus.";
         }
 
         // Tambah jabatan baru (kalau dipilih)
@@ -358,7 +391,7 @@ class GuruController extends Controller
                     break;
             }
 
-            $catatan[] = "Jabatan {$label[$target]} ditambahkan. Login dengan NIP, password awal: " . AkunStaf::PASSWORD_DEFAULT . '.';
+            $catatan[] = "Tugas tambahan {$label[$target]} ditambahkan. Login dengan NIP, password awal: " . AkunStaf::PASSWORD_DEFAULT . '.';
         }
 
         return $catatan ? implode(' ', $catatan) : null;
@@ -376,7 +409,7 @@ class GuruController extends Controller
                     + DB::table('intervensi')->where('nip_walikelas', $nip)->count()
                     + DB::table('catatan')->where('nip_walikelas', $nip)->count();
                 if ($riwayat > 0) {
-                    throw new \DomainException("Jabatan Wali Kelas tidak dapat dihapus karena memiliki {$riwayat} riwayat penilaian/intervensi/catatan.");
+                    throw new \DomainException("Tugas tambahan Wali Kelas tidak dapat dihapus karena memiliki {$riwayat} riwayat penilaian/intervensi/catatan.");
                 }
 
                 User::where('username', $w->username)->delete();
@@ -389,7 +422,7 @@ class GuruController extends Controller
                 $riwayat = DB::table('penilaian')->where('nip_bk', $nip)->count()
                     + DB::table('intervensi')->where('nip_bk', $nip)->count();
                 if ($riwayat > 0) {
-                    throw new \DomainException("Jabatan Guru BK tidak dapat dihapus karena memiliki {$riwayat} riwayat penilaian/intervensi.");
+                    throw new \DomainException("Tugas tambahan Guru BK tidak dapat dihapus karena memiliki {$riwayat} riwayat penilaian/intervensi.");
                 }
 
                 User::where('username', $bk->username)->delete();
@@ -407,7 +440,7 @@ class GuruController extends Controller
                 $wk = wakasek::where('nip_wakasek', $nip)->firstOrFail();
 
                 if (Auth::user() && Auth::user()->username === $wk->username) {
-                    throw new \DomainException('Jabatan Wakasek dari akun yang sedang kamu pakai tidak dapat dihapus.');
+                    throw new \DomainException('Tugas tambahan Wakasek dari akun yang sedang kamu pakai tidak dapat dihapus.');
                 }
                 if (User::where('role', User::ROLE_WAKASEK)->count() <= 1) {
                     throw new \DomainException('Wakasek terakhir tidak dapat dihapus.');
@@ -417,7 +450,7 @@ class GuruController extends Controller
                     + DB::table('catatan')->where('nip_wakasek', $nip)->count()
                     + DB::table('intervensi')->where('nip_wakasek', $nip)->count();
                 if ($riwayat > 0) {
-                    throw new \DomainException("Jabatan Wakasek tidak dapat dihapus karena memiliki {$riwayat} riwayat penilaian/catatan/intervensi.");
+                    throw new \DomainException("Tugas tambahan Wakasek tidak dapat dihapus karena memiliki {$riwayat} riwayat penilaian/catatan/intervensi.");
                 }
 
                 User::where('username', $wk->username)->delete();

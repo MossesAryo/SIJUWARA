@@ -38,7 +38,7 @@
                     <dd class="mt-0.5 text-gray-700">{{ $user->email }}</dd>
                 </div>
                 <div>
-                    <dt class="text-xs uppercase tracking-wide text-gray-400">Role</dt>
+                    <dt class="text-xs uppercase tracking-wide text-gray-400">Tugas Tambahan</dt>
                     <dd class="mt-0.5 text-gray-700">{{ $labelRole }}</dd>
                 </div>
                 <div>

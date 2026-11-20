@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\GuruController;
 use App\Models\ActivityLog;
+use App\Models\guru;
 use App\Models\jurusan;
 use App\Models\kelas;
 use App\Models\User;
+use App\Support\AkunStaf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -85,12 +88,34 @@ class UserController extends Controller
     ];
 
     /**
+     * Kode tugas tambahan (sama dengan Guru::DAFTAR_JABATAN) per kode role.
+     */
+    private const KODE_TUGAS = [
+        User::ROLE_WAKASEK => 'wakasek',
+        User::ROLE_GURU_BK => 'gurubk',
+        User::ROLE_WALIKELAS => 'walikelas',
+        User::ROLE_KETUA_PROGRAM => 'kaprog',
+    ];
+
+    /**
      * Password awal semua akun baru yang dibuat lewat form Tambah Akun.
      */
     private const PASSWORD_AWAL = 'password123';
 
     public function index(Request $request)
     {
+        // Tab Master Data Guru (kolom Tugas Tambahan) memakai data dan modal yang sama dengan menu Guru Wakasek.
+        if ($request->query('tab') === 'guru') {
+            return view('superadmin.user.index', array_merge(
+                app(GuruController::class)->dataIndex($request),
+                [
+                    'tab' => 'guru',
+                    'totalSemua' => User::count(),
+                    'totalGuru' => guru::count(),
+                ]
+            ));
+        }
+
         $q = trim((string) $request->query('q', ''));
 
         $roleDipilih = $request->query('role');
@@ -159,6 +184,8 @@ class UserController extends Controller
             ->values();
 
         return view('superadmin.user.index', [
+            'tab' => 'akun',
+            'totalGuru' => guru::count(),
             'pengguna' => $pengguna,
             'daftarRole' => $daftarRole,
             'totalSemua' => (int) $jumlahPerRole->sum(),
@@ -169,7 +196,7 @@ class UserController extends Controller
     }
 
     /**
-     * Form tambah akun (semua role: Wakasek, Guru BK, Wali Kelas, Ketua Program, Super Admin).
+     * Form tambah akun (semua tugas tambahan: Wakasek, Guru BK, Wali Kelas, Ketua Program, Super Admin).
      */
     public function create(Request $request)
     {
@@ -426,7 +453,21 @@ class UserController extends Controller
             $daftarJurusan = jurusan::orderBy('nama_jurusan')->get();
         }
 
+        // Dropdown Tugas Tambahan mengambil pilihan dari Guru::DAFTAR_JABATAN
+        // (sama dengan dropdown di halaman Data Guru).
+        $bisaGanti = $profil && isset(self::KODE_TUGAS[$role]);
+
         return view('superadmin.user.edit', [
+            'daftarTugas' => guru::DAFTAR_JABATAN,
+            'tugasSekarang' => self::KODE_TUGAS[$role] ?? null,
+            'bisaGantiTugas' => $bisaGanti && $user->id !== $request->user()->id,
+            'daftarKelasBaru' => $bisaGanti
+                ? kelas::with('walikelas')
+                    ->where('id_kelas', '!=', 'ALUMNI')
+                    ->orderBy('nama_kelas')
+                    ->get()
+                : collect(),
+            'daftarJurusanBaru' => $bisaGanti ? jurusan::orderBy('nama_jurusan')->get() : collect(),
             'user' => $user,
             'cfg' => $cfg,
             'profil' => $profil,
@@ -446,6 +487,14 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         [$cfg, $profil] = $this->ambilProfil($user);
         $role = (int) $user->role;
+
+        // Tugas tambahan diganti lewat dropdown: akun dibuat ulang sesuai tugas yang baru.
+        $tugasBaru = (string) $request->input('tugas_tambahan', '');
+        $tugasLama = self::KODE_TUGAS[$role] ?? null;
+
+        if ($profil && $tugasLama !== null && $tugasBaru !== '' && $tugasBaru !== $tugasLama) {
+            return $this->gantiTugasTambahan($request, $user, $cfg, $profil, $role, $tugasLama, $tugasBaru);
+        }
 
         $rules = [
             'email' => [
@@ -633,6 +682,103 @@ class UserController extends Controller
             ->with(
                 'success',
                 'Data akun "' . $user->username . '" berhasil diperbarui.'
+            );
+    }
+
+    /**
+     * Ganti tugas tambahan sebuah akun (Wakasek, Guru BK, Wali Kelas, Ketua Program).
+     * Aturannya sama dengan edit tugas tambahan di halaman Data Guru: akun lama dan
+     * profilnya dihapus, lalu akun baru dibuat dengan password awal. Ditolak bila akun
+     * lama masih punya riwayat kerja.
+     */
+    private function gantiTugasTambahan(
+        Request $request,
+        User $user,
+        array $cfg,
+        object $profil,
+        int $role,
+        string $tugasLama,
+        string $tugasBaru
+    ) {
+        if ($user->id === $request->user()->id) {
+            return back()->with('error', 'Tugas tambahan akun yang sedang Anda pakai tidak dapat diganti.');
+        }
+
+        $request->validate([
+            'tugas_tambahan' => ['required', Rule::in(array_keys(guru::DAFTAR_JABATAN))],
+            'id_kelas_baru' => ['nullable', 'string', 'not_in:ALUMNI', 'exists:kelas,id_kelas'],
+            'id_jurusan_baru' => [
+                Rule::requiredIf($tugasBaru === 'kaprog'),
+                'nullable',
+                'exists:jurusan,id_jurusan',
+            ],
+        ], [
+            'tugas_tambahan.in' => 'Tugas tambahan yang dipilih tidak valid.',
+            'id_kelas_baru.exists' => 'Kelas yang dipilih tidak valid.',
+            'id_kelas_baru.not_in' => 'Kelas ALUMNI tidak dapat dipilih.',
+            'id_jurusan_baru.required' => 'Jurusan wajib dipilih untuk Ketua Program.',
+            'id_jurusan_baru.exists' => 'Jurusan yang dipilih tidak valid.',
+        ]);
+
+        $nip = (string) $profil->{$cfg['nip']};
+        $nama = (string) $profil->{$cfg['nama']};
+        $usernameLama = $user->username;
+        $label = guru::DAFTAR_JABATAN;
+        $catatan = null;
+
+        try {
+            DB::transaction(function () use ($user, $nip, $nama, $tugasBaru, $request, $role, &$catatan) {
+                // Pastikan guru ada di master data guru.
+                guru::firstOrCreate(['nip_guru' => $nip], ['nama_guru' => $nama]);
+
+                // Pertahankan identitas pelaku pada log lama.
+                DB::table('activity_logs')
+                    ->where('user_id', $user->id)
+                    ->whereNull('actor_username')
+                    ->update([
+                        'actor_username' => $user->username,
+                        'actor_role' => $role,
+                    ]);
+
+                if ($role === User::ROLE_GURU_BK) {
+                    DB::table('guru_bk_kelas')->where('guru_bk_id', $nip)->delete();
+                }
+
+                $user->tokens()->delete();
+
+                $catatan = app(GuruController::class)->terapkanJabatan(
+                    $nip,
+                    $nama,
+                    $tugasBaru,
+                    $request->input('id_kelas_baru') ?: null,
+                    $request->input('id_jurusan_baru') ?: null
+                );
+            });
+        } catch (\DomainException $e) {
+            return back()->withInput($request->except('password', 'password_confirmation'))
+                ->with('error', $e->getMessage());
+        } catch (Throwable $e) {
+            return back()->withInput($request->except('password', 'password_confirmation'))
+                ->with('error', AkunStaf::pesanGagal($e, 'Ganti tugas tambahan'));
+        }
+
+        $this->hapusSesi($user->id);
+
+        ActivityLog::catat(
+            ActivityLog::KATEGORI_AKUN,
+            'Ubah Tugas Tambahan',
+            'Akun "' . $usernameLama . '" (NIP ' . $nip . ', nama ' . $nama . '): tugas tambahan '
+                . $label[$tugasLama] . ' → ' . $label[$tugasBaru] . '. Akun lama dihapus dan akun baru dibuat.'
+        );
+
+        $kodeRoleBaru = array_search($tugasBaru, self::KODE_TUGAS, true);
+
+        return redirect()
+            ->route('superadmin.user.index', ['role' => $kodeRoleBaru])
+            ->with(
+                'success',
+                'Tugas tambahan ' . $nama . ' diganti dari ' . $label[$tugasLama] . ' menjadi ' . $label[$tugasBaru] . '. '
+                    . ($catatan ?? '')
             );
     }
 
@@ -1079,7 +1225,7 @@ class UserController extends Controller
     private function atribut(): array
     {
         return [
-            'role' => 'Role',
+            'role' => 'Tugas Tambahan',
             'nip' => 'NIP',
             'username' => 'Username',
             'email' => 'Email',
@@ -1103,8 +1249,8 @@ class UserController extends Controller
             'confirmed' => 'Konfirmasi password tidak cocok.',
             'exists' => ':attribute yang dipilih tidak valid.',
             'id_kelas.unique' => 'Kelas ini sudah memiliki wali kelas lain.',
-            'role.required' => 'Pilih role terlebih dahulu.',
-            'role.in' => 'Role yang dipilih tidak valid.',
+            'role.required' => 'Pilih tugas tambahan terlebih dahulu.',
+            'role.in' => 'Tugas tambahan yang dipilih tidak valid.',
             'password.required' => 'Password wajib diisi untuk akun Super Admin.',
             'nip.regex' => 'NIP harus berupa angka 5 sampai 18 digit.',
             'username.regex' => 'Username hanya boleh huruf, angka, titik, garis bawah, dan strip (tanpa spasi).',
