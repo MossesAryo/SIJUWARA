@@ -50,6 +50,14 @@
             </dl>
         </div>
 
+        @if (!empty($tugasLain))
+            <div class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+                <i class="bi bi-info-circle"></i>
+                Orang ini juga memegang <strong>{{ implode(', ', $tugasLain) }}</strong>. Akun dan data tugas tambahan tersebut
+                <strong>tidak ikut terhapus</strong>; hanya akun {{ $labelRole }} ini yang dihapus.
+            </div>
+        @endif
+
         <div class="rounded-2xl border border-red-200 bg-red-50 p-5 sm:p-6">
             <p class="mb-2 flex items-center gap-2 text-sm font-semibold text-red-800">
                 <i class="bi bi-exclamation-triangle"></i> Data yang ikut terhapus

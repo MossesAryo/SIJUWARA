@@ -123,6 +123,9 @@
                                 <span class="rounded-lg px-2.5 py-1 text-xs font-medium {{ $badge[$p['role']] ?? 'bg-red-50 text-red-600' }}">
                                     {{ $p['role_label'] }}
                                 </span>
+                                @foreach ($p['tugas_lain'] ?? [] as $lain)
+                                    <span class="ml-1 text-xs text-gray-400">+ {{ $lain }}</span>
+                                @endforeach
                             </td>
                             <td class="px-4 py-3">
                                 @if ($p['sesuai'])

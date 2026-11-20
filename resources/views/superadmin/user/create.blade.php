@@ -5,9 +5,9 @@
 @section('content')
     @php
         $input = 'w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-400 focus:outline-none';
-        $roleTerpilih = (string) old('role', $roleAwal ?? '');
-        $pilihKelas = old('kelas', []);
-        $pilihKelas = is_array($pilihKelas) ? $pilihKelas : [];
+        $roleTerpilih = collect(old('role', $roleAwal ? [$roleAwal] : []))
+            ->map(fn ($v) => (string) $v)
+            ->all();
     @endphp
 
     <div class="mb-5">
@@ -15,52 +15,62 @@
             <i class="bi bi-arrow-left"></i> Kembali ke Manajemen User
         </a>
         <h2 class="mt-2 text-lg font-bold text-gray-900">Tambah Akun</h2>
-        <p class="text-sm text-gray-400">Pilih tugas tambahan, lalu isi data akun. Pengguna login memakai NIP (Super Admin memakai username) dan password.</p>
+        <p class="text-sm text-gray-400">Satu orang satu akun. Centang satu atau lebih tugas tambahan; bila lebih dari satu, pengguna memilih tugas yang dipakai setelah login. Login memakai NIP (Super Admin memakai username) dan password.</p>
     </div>
 
     <div class="max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
         <form method="POST" action="{{ route('superadmin.user.store') }}" class="space-y-5" autocomplete="off">
             @csrf
 
-            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                {{-- Role --}}
-                <div class="sm:col-span-2">
-                    <label for="role" class="mb-1 block text-sm font-medium text-gray-700">Tugas Tambahan <span class="text-red-500">*</span></label>
-                    <select id="role" name="role" required
-                        class="{{ $input }} {{ $errors->has('role') ? 'border-red-400' : 'border-gray-300' }}">
-                        <option value="">-- Pilih tugas tambahan --</option>
-                        @foreach ($daftarRole as $r)
-                            <option value="{{ $r['kode'] }}" @selected((string) $r['kode'] === $roleTerpilih)>{{ $r['label'] }}</option>
-                        @endforeach
-                    </select>
-                    <p class="mt-1 text-xs text-gray-400" id="roleHint">Pilih tugas tambahan untuk menampilkan isian yang sesuai.</p>
-                    @error('role') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            {{-- Tugas tambahan (boleh lebih dari satu) --}}
+            <div>
+                <p class="mb-2 text-sm font-medium text-gray-700">Tugas Tambahan <span class="text-red-500">*</span></p>
+                <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    @foreach ($daftarRole as $r)
+                        <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                            <input type="checkbox" name="role[]" value="{{ $r['kode'] }}"
+                                @checked(in_array((string) $r['kode'], $roleTerpilih, true))
+                                class="rounded border-gray-300">
+                            <span>{{ $r['label'] }}</span>
+                            @if ((int) $r['kode'] === 5)
+                                <span class="text-xs text-gray-400">(tidak bisa digabung)</span>
+                            @endif
+                        </label>
+                    @endforeach
                 </div>
+                <p class="mt-2 text-xs text-gray-400" id="roleHint">Centang tugas tambahan untuk menampilkan isian yang sesuai.</p>
+                @error('role') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                @error('role.*') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
 
-                {{-- Kolom umum --}}
-                <div data-role-section="1 2 3 4">
+            {{-- Data orang (NIP & nama; tidak dipakai Super Admin) --}}
+            <div data-umum class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <div>
                     <label for="nip" class="mb-1 block text-sm font-medium text-gray-700">NIP <span class="text-red-500">*</span></label>
                     <input id="nip" name="nip" type="text" inputmode="numeric" required maxlength="18"
                         value="{{ old('nip') }}"
                         class="{{ $input }} font-mono {{ $errors->has('nip') ? 'border-red-400' : 'border-gray-300' }}">
-                    <p class="mt-1 text-xs text-gray-400">Angka 5 sampai 18 digit. NIP tidak dapat diubah setelah akun dibuat.</p>
+                    <p class="mt-1 text-xs text-gray-400">Angka 5 sampai 18 digit. Dipakai untuk login.</p>
                     @error('nip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
-                <div data-role-section="1 2 3 4">
+                <div>
                     <label for="nama" class="mb-1 block text-sm font-medium text-gray-700">Nama Lengkap <span class="text-red-500">*</span></label>
                     <input id="nama" name="nama" type="text" required maxlength="255"
                         value="{{ old('nama') }}"
                         class="{{ $input }} {{ $errors->has('nama') ? 'border-red-400' : 'border-gray-300' }}">
                     @error('nama') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
+            </div>
 
+            {{-- Satu akun: username & email --}}
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
                     <label for="username" class="mb-1 block text-sm font-medium text-gray-700">Username <span class="text-red-500">*</span></label>
                     <input id="username" name="username" type="text" required maxlength="255"
                         value="{{ old('username') }}"
                         class="{{ $input }} {{ $errors->has('username') ? 'border-red-400' : 'border-gray-300' }}">
-                    <p class="mt-1 text-xs text-gray-400">Huruf, angka, titik, garis bawah, atau strip. Tanpa spasi, tidak boleh angka saja. Terisi otomatis dari nama, boleh diubah.</p>
+                    <p class="mt-1 text-xs text-gray-400">Huruf, angka, titik, garis bawah, dan strip. Tidak boleh angka saja.</p>
                     @error('username') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
@@ -71,65 +81,25 @@
                         class="{{ $input }} {{ $errors->has('email') ? 'border-red-400' : 'border-gray-300' }}">
                     @error('email') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
-
-                {{-- Wali Kelas: pilih kelas --}}
-                <div data-role-section="3" class="sm:col-span-2 {{ $roleTerpilih === '3' ? '' : 'hidden' }}">
-                    <label for="id_kelas" class="mb-1 block text-sm font-medium text-gray-700">Kelas Perwalian <span class="text-red-500">*</span></label>
-                    <select id="id_kelas" name="id_kelas" required
-                        class="{{ $input }} {{ $errors->has('id_kelas') ? 'border-red-400' : 'border-gray-300' }}">
-                        <option value="">-- Pilih kelas --</option>
-                        @foreach ($daftarKelas as $k)
-                            @php $terisi = in_array($k->id_kelas, $kelasTerisi, true); @endphp
-                            <option value="{{ $k->id_kelas }}"
-                                @selected(old('id_kelas') === $k->id_kelas)
-                                @disabled($terisi)>
-                                {{ $k->nama_kelas }}{{ $terisi ? ' (sudah ada wali kelas)' : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="mt-1 text-xs text-gray-400">Satu kelas hanya dapat memiliki satu wali kelas.</p>
-                    @error('id_kelas') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-
-                {{-- Ketua Program: pilih jurusan --}}
-                <div data-role-section="4" class="sm:col-span-2 {{ $roleTerpilih === '4' ? '' : 'hidden' }}">
-                    <label for="id_jurusan" class="mb-1 block text-sm font-medium text-gray-700">Jurusan <span class="text-red-500">*</span></label>
-                    <select id="id_jurusan" name="id_jurusan" required
-                        class="{{ $input }} {{ $errors->has('id_jurusan') ? 'border-red-400' : 'border-gray-300' }}">
-                        <option value="">-- Pilih jurusan --</option>
-                        @foreach ($daftarJurusan as $j)
-                            @php $terisi = in_array($j->id_jurusan, $jurusanTerisi, true); @endphp
-                            <option value="{{ $j->id_jurusan }}"
-                                @selected(old('id_jurusan') === $j->id_jurusan)
-                                @disabled($terisi)>
-                                {{ $j->nama_jurusan }}{{ $terisi ? ' (sudah ada ketua program)' : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="mt-1 text-xs text-gray-400">Satu jurusan hanya dapat memiliki satu ketua program.</p>
-                    @error('id_jurusan') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
             </div>
 
-            {{-- Guru BK: pilih kelas binaan --}}
-            <div data-role-section="2" class="{{ $roleTerpilih === '2' ? '' : 'hidden' }}">
-                <p class="mb-1 text-sm font-medium text-gray-700">Kelas Binaan <span class="text-xs font-normal text-gray-400">(boleh dikosongkan)</span></p>
-                <div class="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto rounded-lg border border-gray-200 p-3 sm:grid-cols-3 md:grid-cols-4">
-                    @foreach ($daftarKelas as $k)
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" name="kelas[]" value="{{ $k->id_kelas }}"
-                                @checked(in_array($k->id_kelas, $pilihKelas, true))
-                                class="rounded border-gray-300">
-                            <span>{{ $k->nama_kelas }}</span>
-                        </label>
-                    @endforeach
-                </div>
-                <p class="mt-1 text-xs text-gray-400">Kelas binaan dapat diatur kapan saja lewat menu Edit akun.</p>
-                @error('kelas') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                @error('kelas.*') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            {{-- Isian khusus per tugas (kelas perwalian / jurusan / kelas binaan) --}}
+            <div class="space-y-4">
+                @foreach ($daftarRole as $r)
+                    @include('superadmin.user._detail_tugas', [
+                        'kode' => $r['kode'],
+                        'label' => $r['label'],
+                        'aktif' => in_array((string) $r['kode'], $roleTerpilih, true),
+                        'input' => $input,
+                        'daftarKelas' => $daftarKelas,
+                        'kelasTerisi' => $kelasTerisi,
+                        'daftarJurusan' => $daftarJurusan,
+                        'jurusanTerisi' => $jurusanTerisi,
+                    ])
+                @endforeach
             </div>
 
-            {{-- Password --}}
+            {{-- Password (satu untuk akun ini) --}}
             <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
                 <p class="text-sm font-semibold text-gray-800">Password</p>
                 <p id="passwordHint" class="mb-3 text-xs text-gray-500">
@@ -170,52 +140,38 @@
 @push('js')
     <script>
         (function () {
-            const roleSelect = document.getElementById('role');
-            const bagian = document.querySelectorAll('[data-role-section]');
+            const cekRole = Array.from(document.querySelectorAll('input[name="role[]"]'));
+            const detail = document.querySelectorAll('[data-detail]');
+            const umum = document.querySelectorAll('[data-umum]');
             const hint = document.getElementById('roleHint');
             const passwordInput = document.getElementById('password');
             const passwordWajib = document.getElementById('passwordWajib');
             const passwordHint = document.getElementById('passwordHint');
             const passwordHintAwal = passwordHint.innerHTML;
-
-            const keteranganRole = {
-                '1': 'Wakasek: mengelola data sekolah. Login memakai NIP.',
-                '2': 'Guru BK: dapat dipasangkan ke beberapa kelas binaan. Login memakai NIP.',
-                '3': 'Wali Kelas: satu kelas hanya dapat memiliki satu wali kelas. Login memakai NIP.',
-                '4': 'Ketua Program: satu jurusan hanya dapat memiliki satu ketua program. Login memakai NIP.',
-                '5': 'Super Admin: tanpa NIP dan tanpa profil. Login memakai username pada kolom NIP, password wajib diisi.'
-            };
-
-            // Tampilkan hanya bagian sesuai tugas tambahan; bagian tersembunyi dinonaktifkan
-            // supaya tidak ikut terkirim dan tidak memicu validasi "required".
-            function tampilkanBagian() {
-                const nilai = roleSelect.value;
-
-                bagian.forEach(function (el) {
-                    const aktif = el.dataset.roleSection.split(' ').indexOf(nilai) !== -1;
-                    el.classList.toggle('hidden', !aktif);
-                    el.querySelectorAll('input, select').forEach(function (f) {
-                        f.disabled = !aktif;
-                    });
-                });
-
-                hint.textContent = keteranganRole[nilai] || 'Pilih tugas tambahan untuk menampilkan isian yang sesuai.';
-
-                const superAdmin = nilai === '5';
-                passwordInput.required = superAdmin;
-                passwordWajib.classList.toggle('hidden', !superAdmin);
-                passwordHint.innerHTML = superAdmin
-                    ? 'Password wajib diisi untuk akun Super Admin (minimal 8 karakter).'
-                    : passwordHintAwal;
-            }
-
-            roleSelect.addEventListener('change', tampilkanBagian);
-            tampilkanBagian();
-
-            // Username otomatis dari nama, selama username belum diisi/diubah manual.
             const nama = document.getElementById('nama');
             const username = document.getElementById('username');
-            let usernameManual = username.value !== '';
+
+            const keteranganRole = {
+                '1': 'Wakasek: mengelola data sekolah.',
+                '2': 'Guru BK: dapat dipasangkan ke beberapa kelas binaan.',
+                '3': 'Wali Kelas: satu kelas hanya dapat memiliki satu wali kelas.',
+                '4': 'Ketua Program: satu jurusan hanya dapat memiliki satu ketua program.',
+                '5': 'Super Admin: tanpa NIP dan tanpa profil. Login memakai username, password wajib diisi.'
+            };
+
+            function terpilih() {
+                return cekRole.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+            }
+
+            // Bagian yang tersembunyi dinonaktifkan supaya tidak terkirim dan tidak memicu validasi "required".
+            function tampil(el, aktif) {
+                el.classList.toggle('hidden', !aktif);
+                el.querySelectorAll('input, select').forEach(function (f) { f.disabled = !aktif; });
+            }
+
+            // Username otomatis dari nama, selama belum diisi/diubah manual.
+            let manual = username.value !== '';
+            username.addEventListener('input', function () { manual = username.value !== ''; });
 
             function buatUsername(teks) {
                 return teks
@@ -225,18 +181,46 @@
                     .replace(/[\u0300-\u036f]/g, '')
                     .replace(/[^a-z0-9]+/g, '.')
                     .replace(/^\.+|\.+$/g, '')
-                    .slice(0, 60);
+                    .slice(0, 50);
             }
 
-            username.addEventListener('input', function () {
-                usernameManual = username.value !== '';
-            });
+            function isiUsername() {
+                if (manual) { return; }
+                username.value = buatUsername(nama.value);
+            }
 
-            nama.addEventListener('input', function () {
-                if (!usernameManual) {
-                    username.value = buatUsername(nama.value);
+            function atur(sumber) {
+                // Super Admin tidak bisa digabung dengan tugas lain.
+                if (sumber && sumber.checked) {
+                    cekRole.forEach(function (c) {
+                        if (c === sumber) { return; }
+                        if (sumber.value === '5' || c.value === '5') { c.checked = false; }
+                    });
                 }
-            });
+
+                const pilih = terpilih();
+                const adaProfil = pilih.some(function (v) { return v !== '5'; });
+                const superAdmin = pilih.indexOf('5') !== -1;
+
+                detail.forEach(function (el) { tampil(el, pilih.indexOf(el.dataset.detail) !== -1); });
+                umum.forEach(function (el) { tampil(el, adaProfil); });
+
+                hint.textContent = pilih.length
+                    ? pilih.map(function (v) { return keteranganRole[v]; }).join(' ')
+                    : 'Centang tugas tambahan untuk menampilkan isian yang sesuai.';
+
+                passwordInput.required = superAdmin;
+                passwordWajib.classList.toggle('hidden', !superAdmin);
+                passwordHint.innerHTML = superAdmin
+                    ? 'Password wajib diisi untuk akun Super Admin (minimal 8 karakter).'
+                    : passwordHintAwal;
+
+                cekRole[0].setCustomValidity(pilih.length ? '' : 'Pilih minimal satu tugas tambahan.');
+            }
+
+            cekRole.forEach(function (c) { c.addEventListener('change', function () { atur(c); }); });
+            nama.addEventListener('input', isiUsername);
+            atur(null);
         })();
     </script>
 @endpush
