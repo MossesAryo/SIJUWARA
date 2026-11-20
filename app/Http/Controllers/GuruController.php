@@ -27,6 +27,7 @@ use Maatwebsite\Excel\Facades\Excel;
 /**
  * Data guru dan staf TU (master data, guru_staf) untuk Wakasek.
  * Terpisah dari data jabatan. Guru tidak punya akun login.
+ * Satu guru boleh memegang lebih dari satu tugas tambahan; tiap tugas punya akun sendiri.
  *
  * Alur: import data guru/staf, lalu petakan jabatannya di menu Wali Kelas,
  * Guru BK, atau Ketua Program. NIP dan nama di form jabatan dipilih dari data ini.
@@ -179,13 +180,22 @@ class GuruController extends Controller
             'nama_guru' => AkunStaf::rapikanNama($request->input('nama_guru')),
         ]);
 
+        // Modal lama mengirim satu nilai (dropdown), form baru boleh mengirim array (checkbox).
+        $jabatanTunggal = $request->has('jabatan') && !is_array($request->input('jabatan'));
+        if ($jabatanTunggal) {
+            $request->merge([
+                'jabatan' => array_values(array_filter([(string) $request->input('jabatan')])),
+            ]);
+        }
+
         $data = $request->validate([
             'nip_guru'   => ['required', 'regex:/^\d{1,18}$/'],
             'nama_guru'  => ['required', 'string', 'max:255'],
-            'jabatan'    => ['nullable', Rule::in(array_keys(Guru::DAFTAR_JABATAN))],
+            'jabatan'    => ['nullable', 'array'],
+            'jabatan.*'  => ['string', Rule::in(array_keys(Guru::DAFTAR_JABATAN))],
             'id_kelas'   => ['nullable', 'string', 'not_in:ALUMNI', Rule::exists('kelas', 'id_kelas')],
             'id_jurusan' => [
-                Rule::requiredIf(fn () => $request->input('jabatan') === 'kaprog'),
+                Rule::requiredIf(fn () => in_array('kaprog', (array) $request->input('jabatan', []), true)),
                 'nullable',
                 Rule::exists('jurusan', 'id_jurusan'),
             ],
@@ -194,7 +204,7 @@ class GuruController extends Controller
             'nip_guru.regex'      => 'NIP harus berupa angka (maksimal 18 digit).',
             'nama_guru.required'  => 'Nama guru wajib diisi.',
             'nama_guru.max'       => 'Nama guru maksimal 255 karakter.',
-            'jabatan.in'          => 'Tugas tambahan yang dipilih tidak valid.',
+            'jabatan.*.in'        => 'Tugas tambahan yang dipilih tidak valid.',
             'id_kelas.exists'     => 'Kelas yang dipilih tidak valid.',
             'id_kelas.not_in'     => 'Kelas alumni tidak bisa dipilih.',
             'id_jurusan.required' => 'Program / kompetensi keahlian wajib dipilih untuk Ketua Program.',
@@ -220,8 +230,18 @@ class GuruController extends Controller
 
         // Tugas tambahan hanya bisa diubah oleh Super Admin (lewat Manajemen User).
         // Dari Wakasek, kolom jabatan diabaikan walaupun dikirim: yang berubah hanya NIP dan nama.
-        $ubahJabatan = $request->has('jabatan') && $this->superAdmin();
+        // Form checkbox harus menyertakan <input type="hidden" name="ubah_jabatan" value="1">,
+        // supaya "semua dikosongkan" tetap terkirim.
+        $ubahJabatan = ($request->has('jabatan') || $request->boolean('ubah_jabatan')) && $this->superAdmin();
         $catatanJabatan = null;
+        $peringatan = null;
+
+        // Modal lama hanya bisa memilih satu jabatan. Untuk guru yang memegang lebih dari satu,
+        // menyimpannya akan menghapus jabatan yang lain, jadi perubahan jabatan dilewati.
+        if ($ubahJabatan && $jabatanTunggal && count(Guru::kodeJabatan((string) $guru->nip_guru)) > 1) {
+            $ubahJabatan = false;
+            $peringatan = 'Guru ini memegang lebih dari satu tugas tambahan, jadi tugas tambahannya tidak diubah dari sini. Ubah lewat tab Akun Pengguna.';
+        }
 
         try {
             DB::transaction(function () use ($guru, $data, $ubahJabatan, &$catatanJabatan) {
@@ -245,7 +265,7 @@ class GuruController extends Controller
                     $catatanJabatan = $this->terapkanJabatan(
                         (string) $data['nip_guru'],
                         $data['nama_guru'],
-                        (string) ($data['jabatan'] ?? ''),
+                        $data['jabatan'] ?? [],
                         $data['id_kelas'] ?? null,
                         $data['id_jurusan'] ?? null
                     );
@@ -262,6 +282,9 @@ class GuruController extends Controller
         $pesan = 'Data guru berhasil diperbarui.';
         if ($catatanJabatan) {
             $pesan .= ' ' . $catatanJabatan;
+        }
+        if ($peringatan) {
+            $pesan .= ' ' . $peringatan;
         }
 
         return $this->halamanGuru()->with('success', $pesan);
@@ -286,115 +309,107 @@ class GuruController extends Controller
         }
     }
 
-    /** Kode jabatan yang sedang dipegang NIP ini, atau '' kalau belum punya. */
-    private function jabatanSekarang(string $nip): string
-    {
-        $sumber = [
-            'wakasek'   => ['wakasek', 'nip_wakasek'],
-            'gurubk'    => ['guru_bk', 'nip_bk'],
-            'kaprog'    => ['ketua_program', 'nip_kaprog'],
-            'walikelas' => ['walikelas', 'nip_walikelas'],
-        ];
-
-        foreach ($sumber as $kode => [$tabel, $kolom]) {
-            if (DB::table($tabel)->where($kolom, $nip)->exists()) {
-                return $kode;
-            }
-        }
-
-        return '';
-    }
-
     /**
-     * Tambah, ubah, atau hapus tugas tambahan seorang guru (dipanggil di dalam transaksi).
-     * Dipakai juga oleh Manajemen User Super Admin saat mengganti tugas tambahan sebuah akun.
-     * Jabatan baru membuat akun login (password awal), jabatan yang dihapus ikut menghapus akunnya.
-     * Pelanggaran aturan dilempar sebagai DomainException supaya semua perubahan dibatalkan.
+     * Sinkronkan tugas tambahan seorang guru dengan daftar $targets (dipanggil di dalam transaksi).
+     * - jabatan yang tidak ada lagi di $targets dihapus (beserta akunnya)
+     * - jabatan yang tetap hanya diperbarui detailnya (kelas / program)
+     * - jabatan baru dibuat (beserta akun login)
+     * Dipakai juga oleh Manajemen User Super Admin. Pelanggaran aturan dilempar sebagai
+     * DomainException supaya semua perubahan dibatalkan.
      *
+     * @param  array|string  $targets     kode jabatan; string tunggal tetap diterima
+     * @param  array|null    $detailUntuk kode jabatan TETAP yang detailnya (kelas / program) diperbarui;
+     *                                    null = semua jabatan yang tetap
      * @return string|null catatan untuk pesan sukses
      */
-    public function terapkanJabatan(string $nip, string $nama, string $target, ?string $idKelas, ?string $idJurusan): ?string
+    public function terapkanJabatan(string $nip, string $nama, array|string $targets, ?string $idKelas, ?string $idJurusan, ?array $detailUntuk = null): ?string
     {
         $label = Guru::DAFTAR_JABATAN;
-        $sekarang = $this->jabatanSekarang($nip);
+        $targets = array_values(array_intersect(array_keys($label), array_filter((array) $targets)));
+        $sekarang = Guru::kodeJabatan($nip);
         $catatan = [];
 
-        // Jabatan tetap sama: hanya detailnya (kelas / program) yang bisa berubah.
-        if ($sekarang === $target) {
-            if ($target === 'walikelas') {
+        // 1. Hapus jabatan yang tidak dipilih lagi
+        foreach (array_diff($sekarang, $targets) as $kode) {
+            $this->hapusJabatan($nip, $kode);
+            $catatan[] = "Tugas tambahan {$label[$kode]} dihapus dan akun loginnya ikut dihapus.";
+        }
+
+        // 2. Jabatan yang tetap: hanya detail yang bisa berubah
+        foreach (array_intersect($targets, $sekarang) as $kode) {
+            if ($detailUntuk !== null && !in_array($kode, $detailUntuk, true)) {
+                continue;
+            }
+
+            if ($kode === 'walikelas') {
                 $digantikan = WalikelasController::pasangkanKelas($nip, $idKelas ?: null);
                 if ($digantikan) {
                     $catatan[] = "{$digantikan} dilepas dari kelas tersebut karena kelas hanya boleh punya satu wali.";
                 }
-            } elseif ($target === 'kaprog') {
+            } elseif ($kode === 'kaprog') {
                 ketua_program::where('nip_kaprog', $nip)->update(['id_jurusan' => $idJurusan]);
             }
-
-            return $catatan ? implode(' ', $catatan) : null;
         }
 
-        // Hapus jabatan lama (kalau ada)
-        if ($sekarang !== '') {
-            $this->hapusJabatan($nip, $sekarang);
-            $catatan[] = "Tugas tambahan {$label[$sekarang]} dihapus dan akun loginnya ikut dihapus.";
-        }
-
-        // Tambah jabatan baru (kalau dipilih)
-        if ($target !== '') {
-            if (AkunStaf::nipTerpakai($nip)) {
-                throw new \DomainException(AkunStaf::pesanNipTerpakai($nip));
-            }
-
-            switch ($target) {
-                case 'walikelas':
-                    $user = AkunStaf::buatUser($nama, $nip, User::ROLE_WALIKELAS);
-                    walikelas::create([
-                        'nip_walikelas'  => $nip,
-                        'username'       => $user->username,
-                        'nama_walikelas' => $nama,
-                        'id_kelas'       => null,
-                    ]);
-                    if ($idKelas) {
-                        $digantikan = WalikelasController::pasangkanKelas($nip, $idKelas);
-                        if ($digantikan) {
-                            $catatan[] = "{$digantikan} dilepas dari kelas tersebut karena kelas hanya boleh punya satu wali.";
-                        }
-                    }
-                    break;
-
-                case 'gurubk':
-                    $user = AkunStaf::buatUser($nama, $nip, User::ROLE_GURU_BK);
-                    guru_bk::create([
-                        'nip_bk'       => $nip,
-                        'username'     => $user->username,
-                        'nama_guru_bk' => $nama,
-                    ]);
-                    break;
-
-                case 'kaprog':
-                    $user = AkunStaf::buatUser($nama, $nip, User::ROLE_KETUA_PROGRAM);
-                    ketua_program::create([
-                        'nip_kaprog'         => $nip,
-                        'nama_ketua_program' => $nama,
-                        'id_jurusan'         => $idJurusan,
-                        'username'           => $user->username,
-                    ]);
-                    break;
-
-                case 'wakasek':
-                    $user = AkunStaf::buatUser($nama, $nip, User::ROLE_WAKASEK);
-                    wakasek::create([
-                        'nip_wakasek'  => $nip,
-                        'username'     => $user->username,
-                        'nama_wakasek' => $nama,
-                    ]);
-                    break;
-            }
-
-            $catatan[] = "Tugas tambahan {$label[$target]} ditambahkan. Login dengan NIP, password awal: " . AkunStaf::PASSWORD_DEFAULT . '.';
+        // 3. Tambah jabatan baru (satu NIP boleh punya akun untuk tiap jabatan)
+        foreach (array_diff($targets, $sekarang) as $kode) {
+            $username = $this->buatJabatan($nip, $nama, $kode, $idKelas, $idJurusan, $catatan);
+            $catatan[] = "Tugas tambahan {$label[$kode]} ditambahkan. Username akun: {$username}, password awal: " . AkunStaf::PASSWORD_DEFAULT . '.';
         }
 
         return $catatan ? implode(' ', $catatan) : null;
+    }
+
+    /** Buat satu jabatan beserta akun loginnya. Mengembalikan username akun. */
+    private function buatJabatan(string $nip, string $nama, string $kode, ?string $idKelas, ?string $idJurusan, array &$catatan): string
+    {
+        switch ($kode) {
+            case 'walikelas':
+                $user = AkunStaf::buatUser($nama, $nip, User::ROLE_WALIKELAS);
+                walikelas::create([
+                    'nip_walikelas'  => $nip,
+                    'username'       => $user->username,
+                    'nama_walikelas' => $nama,
+                    'id_kelas'       => null,
+                ]);
+                if ($idKelas) {
+                    $digantikan = WalikelasController::pasangkanKelas($nip, $idKelas);
+                    if ($digantikan) {
+                        $catatan[] = "{$digantikan} dilepas dari kelas tersebut karena kelas hanya boleh punya satu wali.";
+                    }
+                }
+                break;
+
+            case 'gurubk':
+                $user = AkunStaf::buatUser($nama, $nip, User::ROLE_GURU_BK);
+                guru_bk::create([
+                    'nip_bk'       => $nip,
+                    'username'     => $user->username,
+                    'nama_guru_bk' => $nama,
+                ]);
+                break;
+
+            case 'kaprog':
+                $user = AkunStaf::buatUser($nama, $nip, User::ROLE_KETUA_PROGRAM);
+                ketua_program::create([
+                    'nip_kaprog'         => $nip,
+                    'nama_ketua_program' => $nama,
+                    'id_jurusan'         => $idJurusan,
+                    'username'           => $user->username,
+                ]);
+                break;
+
+            case 'wakasek':
+                $user = AkunStaf::buatUser($nama, $nip, User::ROLE_WAKASEK);
+                wakasek::create([
+                    'nip_wakasek'  => $nip,
+                    'username'     => $user->username,
+                    'nama_wakasek' => $nama,
+                ]);
+                break;
+        }
+
+        return $user->username;
     }
 
     /** Hapus jabatan beserta akun loginnya. Data guru tetap ada. */

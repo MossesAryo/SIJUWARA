@@ -22,6 +22,7 @@
         Data guru dan staf TU tidak punya akun login sampai diberi tugas tambahan. Memilih tugas tambahan
         (Wakasek, Guru BK, Wali Kelas, atau Ketua Program) membuat akun login dengan NIP dan password awal
         <strong>password123</strong>. Menghapus tugas tambahan ikut menghapus akunnya, data guru tetap ada.
+        Satu guru boleh memegang lebih dari satu tugas tambahan (satu akun per tugas); menambah atau menukar tugas kedua dilakukan lewat tab Akun Pengguna.
     </span>
 </div>
 

@@ -51,6 +51,13 @@ Route::get('/', [AController::class, 'index'])->name('login');
 Route::post('/login', [AController::class, 'login'])->middleware('throttle:5,1')->name('login.submit');
 Route::get('/logout', [AController::class, 'logout'])->name('logout');
 
+// Pilih tugas setelah password benar (akun dengan lebih dari satu tugas).
+// Di luar group auth karena pengguna belum login pada tahap ini.
+Route::get('/pilih-tugas', [AController::class, 'pilihTugas'])->name('pilih_tugas');
+Route::post('/pilih-tugas', [AController::class, 'simpanPilihTugas'])
+    ->middleware('throttle:10,1')
+    ->name('pilih_tugas.submit');
+
 // Authenticated Routes
 Route::middleware(['auth'])->group(function () {
 
@@ -58,6 +65,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('wakasek.dashboard');
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
     Route::put('/profile/update', [ProfileController::class, 'updateProfile'])->name('profile.update');
+
+    // Ganti tugas aktif tanpa login ulang
+    Route::post('/ganti-tugas', [AController::class, 'gantiTugas'])->name('tugas.ganti');
 
     // Siswa
     Route::get('/siswa', [SiswaController::class, 'index'])->name('siswa.index');

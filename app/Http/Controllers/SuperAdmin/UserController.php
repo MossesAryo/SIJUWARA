@@ -9,7 +9,6 @@ use App\Models\guru;
 use App\Models\jurusan;
 use App\Models\kelas;
 use App\Models\User;
-use App\Support\AkunStaf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +17,12 @@ use Illuminate\Validation\Rule;
 use Throwable;
 
 /**
- * Manajemen User: satu pintu untuk membuat, mengubah, dan menghapus akun semua role.
+ * Manajemen User: satu pintu untuk membuat, mengubah, dan menghapus akun.
+ *
+ * Satu orang = satu akun (satu username, satu password). Tugas tambahan (Wakasek, Guru BK,
+ * Wali Kelas, Ketua Program) disimpan sebagai satu baris profil per tugas dengan username
+ * yang sama. Kolom users.role menyimpan tugas yang sedang aktif; pengguna yang memegang
+ * lebih dari satu tugas memilih tugasnya setelah login.
  */
 class UserController extends Controller
 {
@@ -76,9 +80,7 @@ class UserController extends Controller
         ],
     ];
 
-    /**
-     * Semua role dapat dibuat lewat form Tambah Akun.
-     */
+    /** Role yang dapat dicentang di form Tambah Akun. */
     private const ROLE_BISA_DIBUAT = [
         User::ROLE_WAKASEK,
         User::ROLE_GURU_BK,
@@ -87,19 +89,15 @@ class UserController extends Controller
         User::ROLE_SUPER_ADMIN,
     ];
 
-    /**
-     * Kode tugas tambahan (sama dengan Guru::DAFTAR_JABATAN) per kode role.
-     */
-    private const KODE_TUGAS = [
-        User::ROLE_WAKASEK => 'wakasek',
-        User::ROLE_GURU_BK => 'gurubk',
-        User::ROLE_WALIKELAS => 'walikelas',
-        User::ROLE_KETUA_PROGRAM => 'kaprog',
+    /** Role yang punya tabel profil (tugas tambahan guru/staf). */
+    private const ROLE_PROFIL = [
+        User::ROLE_WAKASEK,
+        User::ROLE_GURU_BK,
+        User::ROLE_WALIKELAS,
+        User::ROLE_KETUA_PROGRAM,
     ];
 
-    /**
-     * Password awal semua akun baru yang dibuat lewat form Tambah Akun.
-     */
+    /** Password awal bila kolom password dikosongkan. */
     private const PASSWORD_AWAL = 'password123';
 
     public function index(Request $request)
@@ -139,10 +137,14 @@ class UserController extends Controller
                 'walikelas:username,nip_walikelas,nama_walikelas',
                 'ketua_program:username,nip_kaprog,nama_ketua_program',
             ])
-            ->when(
-                $roleDipilih !== null,
-                fn ($query) => $query->where('role', $roleDipilih)
-            )
+            // Filter berdasarkan tugas yang dipegang (bukan hanya tugas yang sedang aktif).
+            ->when($roleDipilih !== null, function ($query) use ($roleDipilih) {
+                if ($roleDipilih === User::ROLE_SUPER_ADMIN) {
+                    $query->where('role', User::ROLE_SUPER_ADMIN);
+                } else {
+                    $query->whereHas(self::PETA[$roleDipilih]['relasi']);
+                }
+            })
             ->when($q !== '', function ($query) use ($like) {
                 $query->where(function ($w) use ($like) {
                     $w->where('username', 'like', $like)
@@ -171,16 +173,18 @@ class UserController extends Controller
             ->withQueryString()
             ->through(fn (User $u) => $this->susunBaris($u));
 
-        $jumlahPerRole = User::selectRaw('role, COUNT(*) as total')
-            ->groupBy('role')
-            ->pluck('total', 'role');
-
         $daftarRole = collect(self::PETA)
-            ->map(fn ($cfg, $kode) => [
-                'kode' => $kode,
-                'label' => $cfg['label'],
-                'total' => (int) ($jumlahPerRole[$kode] ?? 0),
-            ])
+            ->map(function ($cfg, $kode) {
+                $total = $cfg['tabel'] === null
+                    ? User::where('role', User::ROLE_SUPER_ADMIN)->count()
+                    : DB::table($cfg['tabel'])->distinct()->count('username');
+
+                return [
+                    'kode' => $kode,
+                    'label' => $cfg['label'],
+                    'total' => (int) $total,
+                ];
+            })
             ->values();
 
         return view('superadmin.user.index', [
@@ -188,7 +192,7 @@ class UserController extends Controller
             'totalGuru' => guru::count(),
             'pengguna' => $pengguna,
             'daftarRole' => $daftarRole,
-            'totalSemua' => (int) $jumlahPerRole->sum(),
+            'totalSemua' => User::count(),
             'q' => $q,
             'roleDipilih' => $roleDipilih,
             'idSaya' => $request->user()->id,
@@ -196,7 +200,7 @@ class UserController extends Controller
     }
 
     /**
-     * Form tambah akun (semua tugas tambahan: Wakasek, Guru BK, Wali Kelas, Ketua Program, Super Admin).
+     * Form tambah akun.
      */
     public function create(Request $request)
     {
@@ -214,54 +218,54 @@ class UserController extends Controller
                 ->all(),
             'roleAwal' => $roleAwal,
             'passwordAwal' => self::PASSWORD_AWAL,
-            'daftarKelas' => kelas::where('id_kelas', '!=', 'ALUMNI')
-                ->orderBy('id_kelas')
-                ->get(['id_kelas', 'nama_kelas']),
+            'daftarKelas' => $this->daftarKelas(),
             // Kelas yang sudah punya wali kelas (satu kelas hanya satu wali).
             'kelasTerisi' => DB::table('walikelas')
+                ->whereNotNull('id_kelas')
                 ->pluck('id_kelas')
                 ->all(),
             'daftarJurusan' => jurusan::orderBy('nama_jurusan')->get(),
             // Jurusan yang sudah punya ketua program (satu jurusan hanya satu kaprog).
             'jurusanTerisi' => DB::table('ketua_program')
+                ->whereNotNull('id_jurusan')
                 ->pluck('id_jurusan')
                 ->all(),
         ]);
     }
 
     /**
-     * Simpan akun baru beserta profilnya dan catat aktivitasnya.
+     * Simpan satu akun baru. Tiap tugas yang dicentang menjadi satu baris profil
+     * dengan username akun yang sama. Semuanya dibuat dalam satu transaksi.
      */
     public function store(Request $request)
     {
-        $role = (int) $request->input('role');
-
-        $punyaProfil = $role !== User::ROLE_SUPER_ADMIN;
+        $roles = $this->ambilRoleDipilih($request->input('role'));
+        $superAdmin = in_array(User::ROLE_SUPER_ADMIN, $roles, true);
+        $punyaProfil = $roles !== [] && !$superAdmin;
 
         $rules = [
-            'role' => ['required', Rule::in(self::ROLE_BISA_DIBUAT)],
+            'role' => [
+                'required',
+                'array',
+                'min:1',
+                function ($attribute, $value, $fail) {
+                    $nilai = array_map('strval', (array) $value);
+
+                    if (in_array((string) User::ROLE_SUPER_ADMIN, $nilai, true) && count($nilai) > 1) {
+                        $fail('Super Admin tidak dapat digabung dengan tugas tambahan lain.');
+                    }
+                },
+            ],
+            'role.*' => ['required', Rule::in(self::ROLE_BISA_DIBUAT)],
+            'username' => $this->aturanUsername(),
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             // Password opsional (kosong = password awal), kecuali Super Admin wajib mengisi.
             'password' => [
-                Rule::requiredIf($role === User::ROLE_SUPER_ADMIN),
+                Rule::requiredIf($superAdmin),
                 'nullable',
                 'string',
                 'min:8',
                 'confirmed',
-            ],
-            'username' => [
-                'required',
-                'string',
-                'max:255',
-                'regex:/^[A-Za-z0-9._-]+$/',
-                // Tidak boleh angka saja: login memeriksa NIP lebih dulu.
-                'not_regex:/^\d+$/',
-                'unique:users,username',
-            ],
-            'email' => [
-                'required',
-                'email',
-                'max:255',
-                'unique:users,email',
             ],
         ];
 
@@ -271,152 +275,57 @@ class UserController extends Controller
                 'regex:/^\d{5,18}$/',
                 function ($attribute, $value, $fail) {
                     if ($this->nipSudahDipakai((string) $value)) {
-                        $fail('NIP sudah dipakai oleh pengguna lain.');
+                        $fail('NIP ini sudah terdaftar. Untuk menambah tugas, edit akun pemilik NIP tersebut.');
                     }
                 },
             ];
             $rules['nama'] = ['required', 'string', 'max:255'];
         }
 
-        if ($role === User::ROLE_WALIKELAS) {
-            $rules['id_kelas'] = [
-                'required',
-                'string',
-                'exists:kelas,id_kelas',
-                'not_in:ALUMNI',
-                'unique:walikelas,id_kelas',
-            ];
-        }
+        $rules += $this->aturanDetail($roles, null);
 
-        if ($role === User::ROLE_KETUA_PROGRAM) {
-            $rules['id_jurusan'] = [
-                'required',
-                'string',
-                'exists:jurusan,id_jurusan',
-                'unique:ketua_program,id_jurusan',
-            ];
-        }
-
-        if ($role === User::ROLE_GURU_BK) {
-            $rules['kelas'] = ['nullable', 'array'];
-            $rules['kelas.*'] = [
-                'string',
-                'exists:kelas,id_kelas',
-                'not_in:ALUMNI',
-            ];
-        }
-
-        $data = $request->validate(
-            $rules,
-            $this->pesan(),
-            $this->atribut()
-        );
-
-        $cfg = self::PETA[$role];
+        $data = $request->validate($rules, $this->pesan(), $this->atribut());
 
         $passwordKustom = !empty($data['password']);
         $password = $passwordKustom ? $data['password'] : self::PASSWORD_AWAL;
 
         try {
-            DB::transaction(function () use ($data, $role, $cfg, $password) {
-                User::create([
-                    'username' => $data['username'],
-                    'email' => $data['email'],
-                    // Di-hash otomatis oleh cast 'hashed' pada model User.
-                    'password' => $password,
-                    'role' => $role,
-                ]);
-
-                // Super Admin tidak punya tabel profil.
-                if ($cfg['tabel'] === null) {
-                    return;
-                }
-
-                $now = now();
-
-                $profil = [
-                    $cfg['nip'] => $data['nip'],
-                    'username' => $data['username'],
-                    $cfg['nama'] => $data['nama'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-
-                if ($role === User::ROLE_WALIKELAS) {
-                    $profil['id_kelas'] = $data['id_kelas'];
-                }
-
-                if ($role === User::ROLE_KETUA_PROGRAM) {
-                    $profil['id_jurusan'] = $data['id_jurusan'];
-                }
-
-                DB::table($cfg['tabel'])->insert($profil);
-
-                if ($role === User::ROLE_GURU_BK) {
-                    $this->sinkronKelasGuruBk(
-                        (int) $data['nip'],
-                        $data['kelas'] ?? []
-                    );
-                }
-            });
+            $ringkas = DB::transaction(fn () => $this->buatAkun($roles, $data, $password));
         } catch (Throwable $e) {
             Log::error('Gagal membuat akun', [
-                'role' => $role,
-                'username' => $data['username'] ?? null,
+                'roles' => $roles,
                 'error' => $e->getMessage(),
             ]);
 
             return back()
-                ->withInput($request->except(
-                    'password',
-                    'password_confirmation'
-                ))
-                ->with(
-                    'error',
-                    'Akun gagal dibuat. Tidak ada data yang tersimpan, silakan coba lagi.'
-                );
+                ->withInput($request->except('password', 'password_confirmation'))
+                ->with('error', 'Akun gagal dibuat. Tidak ada data yang tersimpan, silakan coba lagi.');
         }
 
-        $keterangan = match ($role) {
-            User::ROLE_WALIKELAS => ', kelas ' . $data['id_kelas'],
-            User::ROLE_KETUA_PROGRAM => ', jurusan ' . $data['id_jurusan'],
-            User::ROLE_GURU_BK => ', kelas binaan ['
-                . implode(', ', array_values(array_unique($data['kelas'] ?? [])))
-                . ']',
-            default => '',
-        };
+        $label = $this->labelTugas($roles);
 
         // Password tidak dicatat di log.
         ActivityLog::catat(
             ActivityLog::KATEGORI_AKUN,
             'Tambah Akun',
-            'Akun ' . $cfg['label'] . ' "' . $data['username'] . '" dibuat'
+            'Akun "' . $data['username'] . '" (' . implode(', ', $label) . ') dibuat'
                 . ($punyaProfil
-                    ? ' (NIP ' . $data['nip']
-                        . ', nama ' . $data['nama']
-                        . $keterangan . ')'
+                    ? ' (NIP ' . $data['nip'] . ', nama ' . $data['nama'] . $ringkas . ')'
                     : '')
                 . '.'
         );
 
-        $namaTampil = $punyaProfil ? $data['nama'] : $data['username'];
-        $infoLogin = $punyaProfil
-            ? 'Login memakai NIP'
-            : 'Login memakai username pada kolom NIP';
-        $infoPassword = $passwordKustom
-            ? 'dan password yang Anda tentukan.'
-            : 'dan password awal: ' . self::PASSWORD_AWAL . '.';
+        $pesanSukses = 'Akun "' . $data['username'] . '" dengan tugas ' . implode(', ', $label) . ' berhasil dibuat. '
+            . ($punyaProfil ? 'Login memakai NIP ' : 'Login memakai username pada kolom NIP ')
+            . ($passwordKustom ? 'dan password yang Anda tentukan.' : 'dan password awal: ' . self::PASSWORD_AWAL . '.');
+
+        if (count($roles) > 1) {
+            $pesanSukses .= ' Setelah login, pengguna memilih tugas yang akan dipakai.';
+        }
 
         return redirect()
-            ->route('superadmin.user.index', [
-                'role' => $role,
-                'q' => $data['username'],
-            ])
-            ->with(
-                'success',
-                'Akun ' . $cfg['label'] . ' "' . $namaTampil
-                    . '" berhasil dibuat. ' . $infoLogin . ' ' . $infoPassword
-            );
+            ->route('superadmin.user.index', ['q' => $punyaProfil ? $data['nip'] : $data['username']])
+            ->with('success', $pesanSukses);
     }
 
     /**
@@ -425,76 +334,75 @@ class UserController extends Controller
     public function edit(Request $request, int $id)
     {
         $user = User::findOrFail($id);
-        [$cfg, $profil] = $this->ambilProfil($user);
-        $role = (int) $user->role;
+        $profilList = $this->profilUser($user);
+        $adaProfil = $profilList !== [];
 
-        $daftarKelas = collect();
-        $kelasDipilih = [];
-        $daftarJurusan = collect();
+        [$nip, $nama] = $this->nipNama($profilList);
 
-        if ($profil && in_array(
-            $role,
-            [User::ROLE_WALIKELAS, User::ROLE_GURU_BK],
-            true
-        )) {
-            $daftarKelas = kelas::where('id_kelas', '!=', 'ALUMNI')
-                ->orderBy('id_kelas')
-                ->get(['id_kelas', 'nama_kelas']);
+        $detail = [];
+
+        if (isset($profilList[User::ROLE_WALIKELAS])) {
+            $detail[User::ROLE_WALIKELAS] = ['id_kelas' => $profilList[User::ROLE_WALIKELAS]->id_kelas];
         }
 
-        if ($profil && $role === User::ROLE_GURU_BK) {
-            $kelasDipilih = DB::table('guru_bk_kelas')
-                ->where('guru_bk_id', $profil->{$cfg['nip']})
-                ->pluck('kelas_id')
-                ->all();
+        if (isset($profilList[User::ROLE_KETUA_PROGRAM])) {
+            $detail[User::ROLE_KETUA_PROGRAM] = ['id_jurusan' => $profilList[User::ROLE_KETUA_PROGRAM]->id_jurusan];
         }
 
-        if ($profil && $role === User::ROLE_KETUA_PROGRAM) {
-            $daftarJurusan = jurusan::orderBy('nama_jurusan')->get();
+        if (isset($profilList[User::ROLE_GURU_BK])) {
+            $detail[User::ROLE_GURU_BK] = [
+                'kelas' => DB::table('guru_bk_kelas')
+                    ->where('guru_bk_id', $profilList[User::ROLE_GURU_BK]->nip_bk)
+                    ->pluck('kelas_id')
+                    ->all(),
+            ];
         }
-
-        // Dropdown Tugas Tambahan mengambil pilihan dari Guru::DAFTAR_JABATAN
-        // (sama dengan dropdown di halaman Data Guru).
-        $bisaGanti = $profil && isset(self::KODE_TUGAS[$role]);
 
         return view('superadmin.user.edit', [
-            'daftarTugas' => guru::DAFTAR_JABATAN,
-            'tugasSekarang' => self::KODE_TUGAS[$role] ?? null,
-            'bisaGantiTugas' => $bisaGanti && $user->id !== $request->user()->id,
-            'daftarKelasBaru' => $bisaGanti
-                ? kelas::with('walikelas')
-                    ->where('id_kelas', '!=', 'ALUMNI')
-                    ->orderBy('nama_kelas')
-                    ->get()
-                : collect(),
-            'daftarJurusanBaru' => $bisaGanti ? jurusan::orderBy('nama_jurusan')->get() : collect(),
             'user' => $user,
-            'cfg' => $cfg,
-            'profil' => $profil,
-            'role' => $role,
-            'daftarKelas' => $daftarKelas,
-            'kelasDipilih' => $kelasDipilih,
-            'daftarJurusan' => $daftarJurusan,
             'akunSendiri' => $user->id === $request->user()->id,
+            'adaProfil' => $adaProfil,
+            'nip' => $nip,
+            'nama' => $nama,
+            'daftarRole' => collect(self::ROLE_PROFIL)
+                ->map(fn ($kode) => ['kode' => $kode, 'label' => self::PETA[$kode]['label']])
+                ->all(),
+            'tugasDipegang' => $this->labelTugas(array_keys($profilList)),
+            'detail' => $detail,
+            'daftarKelas' => $this->daftarKelas(),
+            // Kelas / jurusan yang sudah dipegang orang LAIN (milik akun ini sendiri tidak dikunci).
+            'kelasTerisi' => DB::table('walikelas')
+                ->whereNotNull('id_kelas')
+                ->when($nip !== null, fn ($q) => $q->where('nip_walikelas', '!=', $nip))
+                ->pluck('id_kelas')
+                ->all(),
+            'daftarJurusan' => jurusan::orderBy('nama_jurusan')->get(),
+            'jurusanTerisi' => DB::table('ketua_program')
+                ->whereNotNull('id_jurusan')
+                ->when($nip !== null, fn ($q) => $q->where('nip_kaprog', '!=', $nip))
+                ->pluck('id_jurusan')
+                ->all(),
         ]);
     }
 
     /**
-     * Simpan perubahan akun dan catat aktivitasnya.
+     * Simpan perubahan akun: data akun, data orang, dan tugas (tambah / lepas / ubah isian).
      */
     public function update(Request $request, int $id)
     {
         $user = User::findOrFail($id);
-        [$cfg, $profil] = $this->ambilProfil($user);
-        $role = (int) $user->role;
+        $profilList = $this->profilUser($user);
+        $adaProfil = $profilList !== [];
 
-        // Tugas tambahan diganti lewat dropdown: akun dibuat ulang sesuai tugas yang baru.
-        $tugasBaru = (string) $request->input('tugas_tambahan', '');
-        $tugasLama = self::KODE_TUGAS[$role] ?? null;
+        [$nipLama, $namaLama] = $this->nipNama($profilList);
+        $nipLama = $nipLama !== null ? (string) $nipLama : null;
 
-        if ($profil && $tugasLama !== null && $tugasBaru !== '' && $tugasBaru !== $tugasLama) {
-            return $this->gantiTugasTambahan($request, $user, $cfg, $profil, $role, $tugasLama, $tugasBaru);
-        }
+        $roles = $adaProfil
+            ? array_values(array_intersect(
+                $this->ambilRoleDipilih($request->input('role')),
+                self::ROLE_PROFIL
+            ))
+            : [];
 
         $rules = [
             'email' => [
@@ -504,14 +412,12 @@ class UserController extends Controller
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
-        ];
-
-        // Username bisa diubah untuk semua role (termasuk Super Admin).
-        $rules['username'] = [
-            'required',
-            'string',
-            'max:255',
-            Rule::unique('users', 'username')->ignore($user->id),
+            'username' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('users', 'username')->ignore($user->id),
+            ],
         ];
 
         // Username lama dari impor bisa berisi spasi/koma (dibuat dari nama),
@@ -522,71 +428,35 @@ class UserController extends Controller
             $rules['username'][] = 'not_regex:/^\d+$/';
         }
 
-        if ($profil) {
-            $nip = $profil->{$cfg['nip']};
+        if ($adaProfil) {
+            $rules['role'] = ['required', 'array', 'min:1'];
+            $rules['role.*'] = ['required', Rule::in(self::ROLE_PROFIL)];
             $rules['nama'] = ['required', 'string', 'max:255'];
-
-            // NIP bisa diubah untuk semua role yang punya profil.
             $rules['nip'] = [
                 'required',
                 'regex:/^\d{5,18}$/',
-                function ($attribute, $value, $fail) use ($nip, $profil) {
-                    if ($this->nipSudahDipakai((string) $value, [
-                        'nip' => $nip,
-                        'username' => $profil->username,
-                    ])) {
+                function ($attribute, $value, $fail) use ($nipLama) {
+                    if ((string) $value !== $nipLama && $this->nipSudahDipakai((string) $value)) {
                         $fail('NIP sudah dipakai oleh pengguna lain.');
                     }
                 },
             ];
-
-            if ($role === User::ROLE_WALIKELAS) {
-                $rules['id_kelas'] = [
-                    'required',
-                    'exists:kelas,id_kelas',
-                    Rule::unique('walikelas', 'id_kelas')
-                        ->ignore($nip, 'nip_walikelas'),
-                ];
-            }
-
-            if ($role === User::ROLE_KETUA_PROGRAM) {
-                $rules['id_jurusan'] = [
-                    'required',
-                    'exists:jurusan,id_jurusan',
-                    Rule::unique('ketua_program', 'id_jurusan')
-                        ->ignore($nip, 'nip_kaprog'),
-                ];
-            }
-
-            if ($role === User::ROLE_GURU_BK) {
-                $rules['kelas'] = ['nullable', 'array'];
-                $rules['kelas.*'] = ['string', 'exists:kelas,id_kelas'];
-            }
+            $rules += $this->aturanDetail($roles, $nipLama);
         }
 
-        $data = $request->validate(
-            $rules,
-            $this->pesan(),
-            $this->atribut()
-        );
+        $data = $request->validate($rules, $this->pesan(), $this->atribut());
 
-        // Rangkum perubahan sebelum data diperbarui.
-        $perubahan = $this->rangkumPerubahan(
-            $user,
-            $profil,
-            $cfg,
-            $role,
-            $data
-        );
+        $punyaSekarang = array_keys($profilList);
+        $dilepas = array_values(array_diff($punyaSekarang, $roles));
+        $ditambah = array_values(array_diff($roles, $punyaSekarang));
+        $tetap = array_values(array_intersect($roles, $punyaSekarang));
+
+        $perubahan = $this->rangkumPerubahan($user, $profilList, $roles, $data, $nipLama, $namaLama);
 
         try {
-            DB::transaction(function () use (
-                $user,
-                $profil,
-                $cfg,
-                $role,
-                $data
-            ) {
+            DB::transaction(function () use ($user, $data, $adaProfil, $roles, $dilepas, $ditambah, $tetap, $nipLama) {
+                $usernameLama = $user->username;
+
                 $user->email = $data['email'];
 
                 if (!empty($data['password'])) {
@@ -594,9 +464,7 @@ class UserController extends Controller
                 }
 
                 // Username baru ikut menurun ke tabel profil lewat ON UPDATE CASCADE.
-                $usernameLama = $user->username;
                 $user->username = $data['username'];
-
                 $user->save();
 
                 // dibuat_oleh menyimpan username apa adanya (tanpa foreign key), ikutkan manual.
@@ -606,40 +474,75 @@ class UserController extends Controller
                         ->update(['dibuat_oleh' => $data['username']]);
                 }
 
-                if (!$profil) {
+                if (!$adaProfil) {
                     return;
                 }
 
-                $nip = $profil->{$cfg['nip']};
-
-                $ubah = [
-                    $cfg['nama'] => $data['nama'],
-                    'updated_at' => now(),
-                ];
-
-                // NIP baru ikut menurun ke tabel riwayat lewat ON UPDATE CASCADE.
-                $ubah[$cfg['nip']] = $data['nip'];
-
-                if ($role === User::ROLE_WALIKELAS) {
-                    $ubah['id_kelas'] = $data['id_kelas'];
+                // 1. Lepas tugas yang tidak dicentang lagi (memakai NIP lama, sebelum NIP berubah).
+                foreach ($dilepas as $r) {
+                    $this->lepasTugas($r, $nipLama);
                 }
 
-                if ($role === User::ROLE_KETUA_PROGRAM) {
-                    $ubah['id_jurusan'] = $data['id_jurusan'];
+                // 2. Isian khusus tugas yang tetap (kelas perwalian / jurusan), selagi NIP masih lama.
+                foreach ($tetap as $r) {
+                    $d = $data['detail'][$r] ?? [];
+
+                    if ($r === User::ROLE_WALIKELAS) {
+                        DB::table('walikelas')->where('nip_walikelas', $nipLama)
+                            ->update(['id_kelas' => $d['id_kelas'] ?? null, 'updated_at' => now()]);
+                    }
+
+                    if ($r === User::ROLE_KETUA_PROGRAM) {
+                        DB::table('ketua_program')->where('nip_kaprog', $nipLama)
+                            ->update(['id_jurusan' => $d['id_jurusan'] ?? null, 'updated_at' => now()]);
+                    }
                 }
 
-                DB::table($cfg['tabel'])
-                    ->where($cfg['nip'], $nip)
-                    ->update($ubah);
+                // 3. NIP dan nama berlaku untuk SEMUA tugas yang masih dipegang.
+                //    NIP baru ikut menurun ke tabel riwayat lewat ON UPDATE CASCADE.
+                foreach (self::PETA as $c) {
+                    if ($c['tabel'] === null) {
+                        continue;
+                    }
 
-                if ($role === User::ROLE_GURU_BK) {
-                    // guru_bk_kelas sudah ikut pindah ke NIP baru lewat cascade.
-                    $this->sinkronKelasGuruBk(
-                        (int) $data['nip'],
-                        $data['kelas'] ?? []
-                    );
+                    DB::table($c['tabel'])
+                        ->where($c['nip'], $nipLama)
+                        ->update([
+                            $c['nama'] => $data['nama'],
+                            $c['nip'] => $data['nip'],
+                            'updated_at' => now(),
+                        ]);
+                }
+
+                // 4. Master data guru ikut disesuaikan (bila barisnya ada dan NIP baru tidak bentrok).
+                if ($nipLama === (string) $data['nip']) {
+                    DB::table('guru')->where('nip_guru', $nipLama)
+                        ->update(['nama_guru' => $data['nama'], 'updated_at' => now()]);
+                } elseif (!DB::table('guru')->where('nip_guru', $data['nip'])->exists()) {
+                    DB::table('guru')->where('nip_guru', $nipLama)
+                        ->update(['nip_guru' => $data['nip'], 'nama_guru' => $data['nama'], 'updated_at' => now()]);
+                }
+
+                // 5. Tambah tugas baru (memakai username, NIP, dan nama terbaru).
+                foreach ($ditambah as $r) {
+                    $this->buatProfil($r, $data['username'], (string) $data['nip'], (string) $data['nama'], $data['detail'][$r] ?? []);
+                }
+
+                // 6. Kelas binaan Guru BK (guru_bk_kelas sudah ikut pindah ke NIP baru lewat cascade).
+                if (in_array(User::ROLE_GURU_BK, $roles, true)) {
+                    $this->sinkronKelasGuruBk((int) $data['nip'], $data['detail'][User::ROLE_GURU_BK]['kelas'] ?? []);
+                }
+
+                // 7. Tugas aktif harus salah satu tugas yang masih dipegang.
+                if (!in_array((int) $user->role, $roles, true)) {
+                    $user->role = $roles[0];
+                    $user->save();
                 }
             });
+        } catch (\DomainException $e) {
+            return back()
+                ->withInput($request->except('password', 'password_confirmation'))
+                ->with('error', $e->getMessage());
         } catch (Throwable $e) {
             Log::error('Gagal memperbarui akun', [
                 'id' => $id,
@@ -647,21 +550,12 @@ class UserController extends Controller
             ]);
 
             return back()
-                ->withInput($request->except(
-                    'password',
-                    'password_confirmation'
-                ))
-                ->with(
-                    'error',
-                    'Data akun gagal diperbarui. Tidak ada perubahan yang tersimpan, silakan coba lagi.'
-                );
+                ->withInput($request->except('password', 'password_confirmation'))
+                ->with('error', 'Data akun gagal diperbarui. Tidak ada perubahan yang tersimpan, silakan coba lagi.');
         }
 
         // Paksa akun lain login ulang jika password-nya diganti.
-        if (
-            !empty($data['password'])
-            && $user->id !== $request->user()->id
-        ) {
+        if (!empty($data['password']) && $user->id !== $request->user()->id) {
             $this->hapusSesi($user->id);
         }
 
@@ -669,117 +563,15 @@ class UserController extends Controller
             ActivityLog::KATEGORI_AKUN,
             'Ubah Akun',
             'Akun "' . $user->username . '" ('
-                . ($cfg['label'] ?? 'Role ' . $role)
+                . ($adaProfil ? implode(', ', $this->labelTugas($roles)) : self::PETA[(int) $user->role]['label'] ?? 'Role ' . $user->role)
                 . '): '
-                . ($perubahan !== ''
-                    ? $perubahan
-                    : 'tidak ada perubahan data')
+                . ($perubahan !== '' ? $perubahan : 'tidak ada perubahan data')
                 . '.'
         );
 
         return redirect()
             ->route('superadmin.user.index')
-            ->with(
-                'success',
-                'Data akun "' . $user->username . '" berhasil diperbarui.'
-            );
-    }
-
-    /**
-     * Ganti tugas tambahan sebuah akun (Wakasek, Guru BK, Wali Kelas, Ketua Program).
-     * Aturannya sama dengan edit tugas tambahan di halaman Data Guru: akun lama dan
-     * profilnya dihapus, lalu akun baru dibuat dengan password awal. Ditolak bila akun
-     * lama masih punya riwayat kerja.
-     */
-    private function gantiTugasTambahan(
-        Request $request,
-        User $user,
-        array $cfg,
-        object $profil,
-        int $role,
-        string $tugasLama,
-        string $tugasBaru
-    ) {
-        if ($user->id === $request->user()->id) {
-            return back()->with('error', 'Tugas tambahan akun yang sedang Anda pakai tidak dapat diganti.');
-        }
-
-        $request->validate([
-            'tugas_tambahan' => ['required', Rule::in(array_keys(guru::DAFTAR_JABATAN))],
-            'id_kelas_baru' => ['nullable', 'string', 'not_in:ALUMNI', 'exists:kelas,id_kelas'],
-            'id_jurusan_baru' => [
-                Rule::requiredIf($tugasBaru === 'kaprog'),
-                'nullable',
-                'exists:jurusan,id_jurusan',
-            ],
-        ], [
-            'tugas_tambahan.in' => 'Tugas tambahan yang dipilih tidak valid.',
-            'id_kelas_baru.exists' => 'Kelas yang dipilih tidak valid.',
-            'id_kelas_baru.not_in' => 'Kelas ALUMNI tidak dapat dipilih.',
-            'id_jurusan_baru.required' => 'Jurusan wajib dipilih untuk Ketua Program.',
-            'id_jurusan_baru.exists' => 'Jurusan yang dipilih tidak valid.',
-        ]);
-
-        $nip = (string) $profil->{$cfg['nip']};
-        $nama = (string) $profil->{$cfg['nama']};
-        $usernameLama = $user->username;
-        $label = guru::DAFTAR_JABATAN;
-        $catatan = null;
-
-        try {
-            DB::transaction(function () use ($user, $nip, $nama, $tugasBaru, $request, $role, &$catatan) {
-                // Pastikan guru ada di master data guru.
-                guru::firstOrCreate(['nip_guru' => $nip], ['nama_guru' => $nama]);
-
-                // Pertahankan identitas pelaku pada log lama.
-                DB::table('activity_logs')
-                    ->where('user_id', $user->id)
-                    ->whereNull('actor_username')
-                    ->update([
-                        'actor_username' => $user->username,
-                        'actor_role' => $role,
-                    ]);
-
-                if ($role === User::ROLE_GURU_BK) {
-                    DB::table('guru_bk_kelas')->where('guru_bk_id', $nip)->delete();
-                }
-
-                $user->tokens()->delete();
-
-                $catatan = app(GuruController::class)->terapkanJabatan(
-                    $nip,
-                    $nama,
-                    $tugasBaru,
-                    $request->input('id_kelas_baru') ?: null,
-                    $request->input('id_jurusan_baru') ?: null
-                );
-            });
-        } catch (\DomainException $e) {
-            return back()->withInput($request->except('password', 'password_confirmation'))
-                ->with('error', $e->getMessage());
-        } catch (Throwable $e) {
-            return back()->withInput($request->except('password', 'password_confirmation'))
-                ->with('error', AkunStaf::pesanGagal($e, 'Ganti tugas tambahan'));
-        }
-
-        $this->hapusSesi($user->id);
-
-        ActivityLog::catat(
-            ActivityLog::KATEGORI_AKUN,
-            'Ubah Tugas Tambahan',
-            'Akun "' . $usernameLama . '" (NIP ' . $nip . ', nama ' . $nama . '): tugas tambahan '
-                . $label[$tugasLama] . ' → ' . $label[$tugasBaru] . '. Akun lama dihapus dan akun baru dibuat.'
-        );
-
-        $kodeRoleBaru = array_search($tugasBaru, self::KODE_TUGAS, true);
-
-        return redirect()
-            ->route('superadmin.user.index', ['role' => $kodeRoleBaru])
-            ->with(
-                'success',
-                'Tugas tambahan ' . $nama . ' diganti dari ' . $label[$tugasLama] . ' menjadi ' . $label[$tugasBaru] . '. '
-                    . ($catatan ?? '')
-            );
+            ->with('success', 'Data akun "' . $user->username . '" berhasil diperbarui.');
     }
 
     /**
@@ -789,34 +581,34 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
-        if ($alasan = $this->alasanTidakBolehHapus(
-            $user,
-            $request->user()->id
-        )) {
+        if ($alasan = $this->alasanTidakBolehHapus($user, $request->user()->id)) {
             return redirect()
                 ->route('superadmin.user.index')
                 ->with('error', $alasan);
         }
 
-        [$cfg, $profil] = $this->ambilProfil($user);
+        $profilList = $this->profilUser($user);
+        [$nip, $nama] = $this->nipNama($profilList);
+
+        $labelTugas = $profilList !== []
+            ? array_values($this->labelTugas(array_keys($profilList)))
+            : [self::PETA[(int) $user->role]['label'] ?? 'Role ' . $user->role];
+
+        $adaWakasek = isset($profilList[User::ROLE_WAKASEK]);
 
         return view('superadmin.user.delete', [
             'user' => $user,
-            'cfg' => $cfg,
-            'profil' => $profil,
-            'role' => (int) $user->role,
-            'dampak' => $this->hitungDampak(
-                $cfg,
-                $profil,
-                (int) $user->role
-            ),
-            'wakasekTerakhir' => (int) $user->role === User::ROLE_WAKASEK
-                && User::where('role', User::ROLE_WAKASEK)->count() <= 1,
+            'labelTugas' => $labelTugas,
+            'nipProfil' => $nip,
+            'namaProfil' => $nama,
+            'dampak' => $this->hitungDampak($profilList),
+            'adaWakasek' => $adaWakasek,
+            'wakasekTerakhir' => $adaWakasek && DB::table('wakasek')->count() <= 1,
         ]);
     }
 
     /**
-     * Hapus akun beserta profilnya dan catat aktivitasnya.
+     * Hapus akun beserta semua profil tugasnya dan catat aktivitasnya.
      */
     public function destroy(Request $request, int $id)
     {
@@ -827,33 +619,30 @@ class UserController extends Controller
 
         $user = User::findOrFail($id);
 
-        if ($alasan = $this->alasanTidakBolehHapus(
-            $user,
-            $request->user()->id
-        )) {
+        if ($alasan = $this->alasanTidakBolehHapus($user, $request->user()->id)) {
             return redirect()
                 ->route('superadmin.user.index')
                 ->with('error', $alasan);
         }
 
-        [$cfg, $profil] = $this->ambilProfil($user);
+        $profilList = $this->profilUser($user);
+        [$nip, $nama] = $this->nipNama($profilList);
 
         $username = $user->username;
-        $role = (int) $user->role;
-        $label = $cfg['label'] ?? 'Role ' . $role;
-        $nip = ($profil && $cfg) ? $profil->{$cfg['nip']} : null;
-        $nama = ($profil && $cfg) ? $profil->{$cfg['nama']} : null;
-        $dampak = $this->hitungDampak($cfg, $profil, $role);
+        $label = $profilList !== []
+            ? implode(', ', $this->labelTugas(array_keys($profilList)))
+            : (self::PETA[(int) $user->role]['label'] ?? 'Role ' . $user->role);
+        $dampak = $this->hitungDampak($profilList);
 
         // Simpan path file bukti sebelum data terkait terhapus melalui cascade (khusus Wakasek).
         $fileBukti = [];
 
-        if ($profil && $role === User::ROLE_WAKASEK) {
+        if (isset($profilList[User::ROLE_WAKASEK])) {
             $fileBukti = DB::table('bukti_pembinaan')
                 ->whereIn(
                     'intervensi_id',
                     DB::table('intervensi')
-                        ->where('nip_wakasek', $nip)
+                        ->where('nip_wakasek', $profilList[User::ROLE_WAKASEK]->nip_wakasek)
                         ->select('id_intervensi')
                 )
                 ->pluck('file')
@@ -861,7 +650,7 @@ class UserController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($user, $cfg, $profil) {
+            DB::transaction(function () use ($user, $profilList) {
                 // Pertahankan identitas pelaku pada log lama.
                 DB::table('activity_logs')
                     ->where('user_id', $user->id)
@@ -871,18 +660,15 @@ class UserController extends Controller
                         'actor_role' => (int) $user->role,
                     ]);
 
-                if ($profil) {
-                    $nip = $profil->{$cfg['nip']};
+                foreach ($profilList as $r => $profil) {
+                    $cfg = self::PETA[$r];
+                    $nipProfil = $profil->{$cfg['nip']};
 
-                    if ($cfg['tabel'] === 'guru_bk') {
-                        DB::table('guru_bk_kelas')
-                            ->where('guru_bk_id', $nip)
-                            ->delete();
+                    if ($r === User::ROLE_GURU_BK) {
+                        DB::table('guru_bk_kelas')->where('guru_bk_id', $nipProfil)->delete();
                     }
 
-                    DB::table($cfg['tabel'])
-                        ->where($cfg['nip'], $nip)
-                        ->delete();
+                    DB::table($cfg['tabel'])->where($cfg['nip'], $nipProfil)->delete();
                 }
 
                 $user->tokens()->delete();
@@ -896,10 +682,7 @@ class UserController extends Controller
 
             return redirect()
                 ->route('superadmin.user.index')
-                ->with(
-                    'error',
-                    'Akun gagal dihapus. Tidak ada data yang berubah, silakan coba lagi.'
-                );
+                ->with('error', 'Akun gagal dihapus. Tidak ada data yang berubah, silakan coba lagi.');
         }
 
         // Bersihkan file bukti pembinaan dari disk (gagal hapus file tidak membatalkan penghapusan data).
@@ -927,125 +710,283 @@ class UserController extends Controller
             'Akun "' . $username . '" (' . $label . ')'
                 . ($nip ? ", NIP {$nip}, nama {$nama}" : '')
                 . '. Ikut terhapus: '
-                . ($ringkasDampak !== ''
-                    ? $ringkasDampak
-                    : 'tidak ada riwayat')
+                . ($ringkasDampak !== '' ? $ringkasDampak : 'tidak ada riwayat')
                 . '.'
         );
 
         return redirect()
             ->route('superadmin.user.index')
-            ->with(
-                'success',
-                'Akun "' . $username . '" berhasil dihapus.'
-            );
+            ->with('success', 'Akun "' . $username . '" berhasil dihapus.');
     }
 
+    // ---------------------------------------------------------------------
+    // Pembantu: akun & profil
+    // ---------------------------------------------------------------------
+
     /**
-     * Rangkum perubahan data akun untuk log aktivitas.
-     * Nilai password tidak pernah dicatat.
+     * Profil tugas yang dipegang akun ini, dicari lewat username: [kode role => baris profil].
+     *
+     * @return array<int, object>
      */
-    private function rangkumPerubahan(
-        User $user,
-        ?object $profil,
-        ?array $cfg,
-        int $role,
-        array $data
-    ): string {
+    private function profilUser(User $user): array
+    {
         $hasil = [];
 
-        if ($user->username !== $data['username']) {
-            $hasil[] = "username {$user->username} → {$data['username']}";
-        }
+        foreach (self::ROLE_PROFIL as $r) {
+            $baris = DB::table(self::PETA[$r]['tabel'])
+                ->where('username', $user->username)
+                ->first();
 
-        if (
-            $profil
-            && $cfg
-            && (string) $profil->{$cfg['nip']} !== (string) $data['nip']
-        ) {
-            $hasil[] = "NIP {$profil->{$cfg['nip']}} → {$data['nip']}";
-        }
-
-        if ($user->email !== $data['email']) {
-            $hasil[] = "email {$user->email} → {$data['email']}";
-        }
-
-        if (!empty($data['password'])) {
-            $hasil[] = 'password diganti';
-        }
-
-        if ($profil && $cfg) {
-            $namaLama = $profil->{$cfg['nama']};
-
-            if ($namaLama !== $data['nama']) {
-                $hasil[] = "nama {$namaLama} → {$data['nama']}";
-            }
-
-            if (
-                $role === User::ROLE_WALIKELAS
-                && (string) $profil->id_kelas
-                    !== (string) $data['id_kelas']
-            ) {
-                $hasil[] = "kelas {$profil->id_kelas} → {$data['id_kelas']}";
-            }
-
-            if (
-                $role === User::ROLE_KETUA_PROGRAM
-                && (string) $profil->id_jurusan
-                    !== (string) $data['id_jurusan']
-            ) {
-                $hasil[] = "jurusan {$profil->id_jurusan} → {$data['id_jurusan']}";
-            }
-
-            if ($role === User::ROLE_GURU_BK) {
-                $lama = DB::table('guru_bk_kelas')
-                    ->where('guru_bk_id', $profil->{$cfg['nip']})
-                    ->pluck('kelas_id')
-                    ->sort()
-                    ->values()
-                    ->all();
-
-                $baru = collect($data['kelas'] ?? [])
-                    ->unique()
-                    ->sort()
-                    ->values()
-                    ->all();
-
-                if ($lama !== $baru) {
-                    $hasil[] = 'kelas binaan ['
-                        . implode(', ', $lama)
-                        . '] → ['
-                        . implode(', ', $baru)
-                        . ']';
-                }
+            if ($baris) {
+                $hasil[$r] = $baris;
             }
         }
 
-        return implode('; ', $hasil);
+        return $hasil;
     }
 
     /**
-     * Periksa apakah NIP sudah dipakai di salah satu tabel profil.
-     * Login mencari NIP di semua tabel profil, jadi NIP harus unik lintas role.
+     * NIP dan nama orang dari profil mana pun yang dipegang (semuanya sama).
+     *
+     * @return array{0: ?string, 1: ?string}
      */
-    private function nipSudahDipakai(string $nip, ?array $kecuali = null): bool
+    private function nipNama(array $profilList): array
+    {
+        if ($profilList === []) {
+            return [null, null];
+        }
+
+        $r = array_key_first($profilList);
+        $cfg = self::PETA[$r];
+
+        return [
+            (string) $profilList[$r]->{$cfg['nip']},
+            (string) $profilList[$r]->{$cfg['nama']},
+        ];
+    }
+
+    /**
+     * @param  int[]  $roles
+     * @return array<int, string>  [kode role => label]
+     */
+    private function labelTugas(array $roles): array
+    {
+        $hasil = [];
+
+        foreach ($roles as $r) {
+            if (isset(self::PETA[$r])) {
+                $hasil[$r] = self::PETA[$r]['label'];
+            }
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Buat satu akun (User) beserta profil tiap tugasnya. Dipanggil di dalam transaksi.
+     *
+     * @param  int[]  $roles
+     * @return string keterangan tambahan untuk log (kelas / jurusan / kelas binaan)
+     */
+    private function buatAkun(array $roles, array $data, string $password): string
+    {
+        User::create([
+            'username' => $data['username'],
+            'email' => $data['email'],
+            // Di-hash otomatis oleh cast 'hashed' pada model User.
+            'password' => $password,
+            // Tugas aktif awal = tugas pertama yang dicentang.
+            'role' => $roles[0],
+        ]);
+
+        // Super Admin tidak punya tabel profil.
+        if ($roles[0] === User::ROLE_SUPER_ADMIN) {
+            return '';
+        }
+
+        $nip = (string) $data['nip'];
+        $nama = (string) $data['nama'];
+        $keterangan = '';
+
+        // Pastikan orang ini ada di master data guru.
+        guru::firstOrCreate(['nip_guru' => $nip], ['nama_guru' => $nama]);
+
+        foreach ($roles as $r) {
+            $d = $data['detail'][$r] ?? [];
+            $keterangan .= $this->buatProfil($r, $data['username'], $nip, $nama, $d);
+        }
+
+        if (in_array(User::ROLE_GURU_BK, $roles, true)) {
+            $this->sinkronKelasGuruBk((int) $nip, $data['detail'][User::ROLE_GURU_BK]['kelas'] ?? []);
+        }
+
+        return $keterangan;
+    }
+
+    /**
+     * Tambah satu baris profil tugas untuk akun yang sudah ada.
+     * Kelas binaan Guru BK disinkronkan terpisah oleh pemanggil.
+     *
+     * @return string keterangan untuk log
+     */
+    private function buatProfil(int $r, string $username, string $nip, string $nama, array $d): string
+    {
+        $cfg = self::PETA[$r];
+        $now = now();
+        $keterangan = '';
+
+        $baris = [
+            $cfg['nip'] => $nip,
+            'username' => $username,
+            $cfg['nama'] => $nama,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        if ($r === User::ROLE_WALIKELAS) {
+            $baris['id_kelas'] = $d['id_kelas'] ?? null;
+            $keterangan = ', kelas ' . ($d['id_kelas'] ?? '-');
+        }
+
+        if ($r === User::ROLE_KETUA_PROGRAM) {
+            $baris['id_jurusan'] = $d['id_jurusan'] ?? null;
+            $keterangan = ', jurusan ' . ($d['id_jurusan'] ?? '-');
+        }
+
+        if ($r === User::ROLE_GURU_BK) {
+            $keterangan = ', kelas binaan [' . implode(', ', array_values(array_unique($d['kelas'] ?? []))) . ']';
+        }
+
+        DB::table($cfg['tabel'])->insert($baris);
+
+        return $keterangan;
+    }
+
+    /**
+     * Lepas satu tugas dari akun. Ditolak (DomainException) bila tugas itu masih punya riwayat
+     * kerja, karena riwayat ikut terhapus lewat cascade.
+     */
+    private function lepasTugas(int $r, string $nip): void
+    {
+        $cfg = self::PETA[$r];
+
+        $riwayat = 0;
+
+        foreach ($cfg['riwayat'] as $tabel => $kolom) {
+            $riwayat += DB::table($tabel)->where($kolom, $nip)->count();
+        }
+
+        if ($riwayat > 0) {
+            throw new \DomainException(
+                'Tugas ' . $cfg['label'] . ' tidak dapat dilepas karena memiliki ' . $riwayat
+                . ' riwayat penilaian/intervensi/catatan.'
+            );
+        }
+
+        if ($r === User::ROLE_WAKASEK && DB::table('wakasek')->count() <= 1) {
+            throw new \DomainException('Wakasek terakhir tidak dapat dilepas.');
+        }
+
+        if ($r === User::ROLE_GURU_BK) {
+            DB::table('guru_bk_kelas')->where('guru_bk_id', $nip)->delete();
+        }
+
+        DB::table($cfg['tabel'])->where($cfg['nip'], $nip)->delete();
+    }
+
+    /** Kode role yang dicentang di form (dibersihkan, tanpa duplikat, terurut). @return int[] */
+    private function ambilRoleDipilih(mixed $input): array
+    {
+        return collect(is_array($input) ? $input : [$input])
+            ->filter(fn ($r) => is_numeric($r))
+            ->map(fn ($r) => (int) $r)
+            ->filter(fn ($r) => in_array($r, self::ROLE_BISA_DIBUAT, true))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function daftarKelas()
+    {
+        return kelas::where('id_kelas', '!=', 'ALUMNI')
+            ->orderBy('id_kelas')
+            ->get(['id_kelas', 'nama_kelas']);
+    }
+
+    // ---------------------------------------------------------------------
+    // Pembantu: validasi
+    // ---------------------------------------------------------------------
+
+    private function aturanUsername(): array
+    {
+        return [
+            'required',
+            'string',
+            'max:255',
+            'regex:/^[A-Za-z0-9._-]+$/',
+            // Tidak boleh angka saja: login memeriksa NIP lebih dulu.
+            'not_regex:/^\d+$/',
+            'unique:users,username',
+        ];
+    }
+
+    /**
+     * Aturan isian khusus tugas: detail[<kode role>][...].
+     *
+     * @param  int[]        $roles
+     * @param  string|null  $nipAbaikan NIP akun yang sedang diedit (kelas/jurusan miliknya sendiri tidak dianggap bentrok)
+     */
+    private function aturanDetail(array $roles, ?string $nipAbaikan): array
+    {
+        $rules = [];
+
+        if (in_array(User::ROLE_WALIKELAS, $roles, true)) {
+            $unik = Rule::unique('walikelas', 'id_kelas');
+
+            if ($nipAbaikan !== null) {
+                $unik = $unik->ignore($nipAbaikan, 'nip_walikelas');
+            }
+
+            $rules['detail.' . User::ROLE_WALIKELAS . '.id_kelas'] = [
+                'required',
+                'string',
+                'exists:kelas,id_kelas',
+                'not_in:ALUMNI',
+                $unik,
+            ];
+        }
+
+        if (in_array(User::ROLE_KETUA_PROGRAM, $roles, true)) {
+            $unik = Rule::unique('ketua_program', 'id_jurusan');
+
+            if ($nipAbaikan !== null) {
+                $unik = $unik->ignore($nipAbaikan, 'nip_kaprog');
+            }
+
+            $rules['detail.' . User::ROLE_KETUA_PROGRAM . '.id_jurusan'] = [
+                'required',
+                'string',
+                'exists:jurusan,id_jurusan',
+                $unik,
+            ];
+        }
+
+        if (in_array(User::ROLE_GURU_BK, $roles, true)) {
+            $rules['detail.' . User::ROLE_GURU_BK . '.kelas'] = ['nullable', 'array'];
+            $rules['detail.' . User::ROLE_GURU_BK . '.kelas.*'] = ['string', 'exists:kelas,id_kelas', 'not_in:ALUMNI'];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Apakah NIP ini sudah ada di salah satu tabel profil (milik siapa pun).
+     */
+    private function nipSudahDipakai(string $nip): bool
     {
         foreach (self::PETA as $cfg) {
-            if ($cfg['tabel'] === null) {
-                continue;
-            }
-
-            $query = DB::table($cfg['tabel'])->where($cfg['nip'], $nip);
-
-            // Abaikan NIP milik akun yang sedang diedit.
-            if ($kecuali !== null) {
-                $query->whereNot(function ($w) use ($cfg, $kecuali) {
-                    $w->where($cfg['tabel'] . '.' . $cfg['nip'], $kecuali['nip'])
-                        ->where($cfg['tabel'] . '.username', $kecuali['username']);
-                });
-            }
-
-            if ($query->exists()) {
+            if ($cfg['tabel'] !== null && DB::table($cfg['tabel'])->where($cfg['nip'], $nip)->exists()) {
                 return true;
             }
         }
@@ -1054,30 +995,10 @@ class UserController extends Controller
     }
 
     /**
-     * Ambil konfigurasi role dan profil akun.
-     */
-    private function ambilProfil(User $user): array
-    {
-        $cfg = self::PETA[(int) $user->role] ?? null;
-
-        if ($cfg === null || $cfg['tabel'] === null) {
-            return [$cfg, null];
-        }
-
-        $profil = DB::table($cfg['tabel'])
-            ->where('username', $user->username)
-            ->first();
-
-        return [$cfg, $profil];
-    }
-
-    /**
      * Periksa apakah akun boleh dihapus.
      */
-    private function alasanTidakBolehHapus(
-        User $user,
-        int $idSaya
-    ): ?string {
+    private function alasanTidakBolehHapus(User $user, int $idSaya): ?string
+    {
         if ($user->id === $idSaya) {
             return 'Akun yang sedang Anda pakai tidak dapat dihapus.';
         }
@@ -1092,42 +1013,41 @@ class UserController extends Controller
         return null;
     }
 
-    /**
-     * Hitung data yang ikut terhapus bersama profil.
-     */
-    private function hitungDampak(
-        ?array $cfg,
-        ?object $profil,
-        int $role
-    ): array {
-        if (!$cfg || !$profil) {
-            return [];
-        }
+    // ---------------------------------------------------------------------
+    // Pembantu: data turunan
+    // ---------------------------------------------------------------------
 
-        $nip = $profil->{$cfg['nip']};
+    /**
+     * Hitung data yang ikut terhapus bersama profil (dijumlahkan untuk semua tugas akun).
+     *
+     * @param  array<int, object>  $profilList
+     */
+    private function hitungDampak(array $profilList): array
+    {
         $dampak = [];
 
-        foreach ($cfg['riwayat'] as $tabel => $kolom) {
-            $dampak[ucfirst($tabel)] = DB::table($tabel)
-                ->where($kolom, $nip)
-                ->count();
-        }
+        foreach ($profilList as $r => $profil) {
+            $cfg = self::PETA[$r];
+            $nip = $profil->{$cfg['nip']};
 
-        if ($role === User::ROLE_WAKASEK) {
-            $dampak['Bukti pembinaan'] = DB::table('bukti_pembinaan')
-                ->whereIn(
-                    'intervensi_id',
-                    DB::table('intervensi')
-                        ->where('nip_wakasek', $nip)
-                        ->select('id_intervensi')
-                )
-                ->count();
-        }
+            foreach ($cfg['riwayat'] as $tabel => $kolom) {
+                $nama = ucfirst($tabel);
+                $dampak[$nama] = ($dampak[$nama] ?? 0) + DB::table($tabel)->where($kolom, $nip)->count();
+            }
 
-        if ($role === User::ROLE_GURU_BK) {
-            $dampak['Penugasan kelas'] = DB::table('guru_bk_kelas')
-                ->where('guru_bk_id', $nip)
-                ->count();
+            if ($r === User::ROLE_WAKASEK) {
+                $dampak['Bukti pembinaan'] = ($dampak['Bukti pembinaan'] ?? 0) + DB::table('bukti_pembinaan')
+                    ->whereIn(
+                        'intervensi_id',
+                        DB::table('intervensi')->where('nip_wakasek', $nip)->select('id_intervensi')
+                    )
+                    ->count();
+            }
+
+            if ($r === User::ROLE_GURU_BK) {
+                $dampak['Penugasan kelas'] = ($dampak['Penugasan kelas'] ?? 0)
+                    + DB::table('guru_bk_kelas')->where('guru_bk_id', $nip)->count();
+            }
         }
 
         return $dampak;
@@ -1136,10 +1056,8 @@ class UserController extends Controller
     /**
      * Sinkronkan penugasan kelas Guru BK.
      */
-    private function sinkronKelasGuruBk(
-        int $nip,
-        array $kelasBaru
-    ): void {
+    private function sinkronKelasGuruBk(int $nip, array $kelasBaru): void
+    {
         $kelasBaru = array_values(array_unique($kelasBaru));
 
         $lama = DB::table('guru_bk_kelas')
@@ -1185,29 +1103,130 @@ class UserController extends Controller
     }
 
     /**
+     * Rangkum perubahan data akun untuk log aktivitas. Nilai password tidak pernah dicatat.
+     *
+     * @param  array<int, object>  $profilList
+     * @param  int[]               $roles
+     */
+    private function rangkumPerubahan(
+        User $user,
+        array $profilList,
+        array $roles,
+        array $data,
+        ?string $nipLama,
+        ?string $namaLama
+    ): string {
+        $hasil = [];
+
+        if ($user->username !== $data['username']) {
+            $hasil[] = "username {$user->username} → {$data['username']}";
+        }
+
+        if ($user->email !== $data['email']) {
+            $hasil[] = "email {$user->email} → {$data['email']}";
+        }
+
+        if (!empty($data['password'])) {
+            $hasil[] = 'password diganti';
+        }
+
+        if ($profilList === []) {
+            return implode('; ', $hasil);
+        }
+
+        if ($nipLama !== (string) $data['nip']) {
+            $hasil[] = "NIP {$nipLama} → {$data['nip']}";
+        }
+
+        if ($namaLama !== $data['nama']) {
+            $hasil[] = "nama {$namaLama} → {$data['nama']}";
+        }
+
+        $sekarang = array_keys($profilList);
+        $dilepas = array_diff($sekarang, $roles);
+        $ditambah = array_diff($roles, $sekarang);
+
+        if ($ditambah) {
+            $hasil[] = 'tugas ditambah: ' . implode(', ', $this->labelTugas($ditambah));
+        }
+
+        if ($dilepas) {
+            $hasil[] = 'tugas dilepas: ' . implode(', ', $this->labelTugas($dilepas));
+        }
+
+        foreach (array_intersect($roles, $sekarang) as $r) {
+            $d = $data['detail'][$r] ?? [];
+            $lama = $profilList[$r];
+
+            if ($r === User::ROLE_WALIKELAS && (string) $lama->id_kelas !== (string) ($d['id_kelas'] ?? '')) {
+                $hasil[] = "kelas {$lama->id_kelas} → " . ($d['id_kelas'] ?? '-');
+            }
+
+            if ($r === User::ROLE_KETUA_PROGRAM && (string) $lama->id_jurusan !== (string) ($d['id_jurusan'] ?? '')) {
+                $hasil[] = "jurusan {$lama->id_jurusan} → " . ($d['id_jurusan'] ?? '-');
+            }
+
+            if ($r === User::ROLE_GURU_BK) {
+                $kelasLama = DB::table('guru_bk_kelas')
+                    ->where('guru_bk_id', $lama->nip_bk)
+                    ->pluck('kelas_id')
+                    ->sort()
+                    ->values()
+                    ->all();
+
+                $kelasBaru = collect($d['kelas'] ?? [])->unique()->sort()->values()->all();
+
+                if ($kelasLama !== $kelasBaru) {
+                    $hasil[] = 'kelas binaan [' . implode(', ', $kelasLama) . '] → [' . implode(', ', $kelasBaru) . ']';
+                }
+            }
+        }
+
+        return implode('; ', $hasil);
+    }
+
+    /**
      * Susun data baris tabel pengguna.
+     * role_label = tugas yang sedang aktif; tugas_lain = tugas lain yang dipegang akun yang sama.
      */
     private function susunBaris(User $u): array
     {
         $role = (int) $u->role;
         $cfg = self::PETA[$role] ?? null;
-        $profil = ($cfg && $cfg['relasi'])
-            ? $u->{$cfg['relasi']}
-            : null;
+
+        // Profil yang dipegang, dari relasi yang sudah di-load.
+        $profil = [];
+
+        foreach (self::ROLE_PROFIL as $r) {
+            $p = $u->{self::PETA[$r]['relasi']};
+
+            if ($p) {
+                $profil[$r] = $p;
+            }
+        }
 
         if ($cfg === null) {
             $sesuai = false;
             $catatan = 'Role tidak dikenal sistem';
-        } elseif ($cfg['relasi'] === null) {
+        } elseif ($role === User::ROLE_SUPER_ADMIN) {
             $sesuai = true;
             $catatan = 'Tanpa tabel profil';
-        } elseif ($profil === null) {
+        } elseif ($profil === []) {
             $sesuai = false;
             $catatan = 'Profil ' . $cfg['label'] . ' tidak ditemukan';
+        } elseif (!isset($profil[$role])) {
+            $sesuai = false;
+            $catatan = 'Tugas aktif tidak sesuai tugas yang dipegang';
         } else {
             $sesuai = true;
             $catatan = 'Sesuai';
         }
+
+        // NIP/nama dari profil tugas aktif; bila tidak ada, dari profil lain yang dipegang.
+        $kodeAcuan = isset($profil[$role]) ? $role : array_key_first($profil);
+
+        $nipProfil = $kodeAcuan !== null ? $profil[$kodeAcuan]->{self::PETA[$kodeAcuan]['nip']} : null;
+        $namaProfil = $kodeAcuan !== null ? $profil[$kodeAcuan]->{self::PETA[$kodeAcuan]['nama']} : null;
 
         return [
             'id' => $u->id,
@@ -1215,8 +1234,9 @@ class UserController extends Controller
             'email' => $u->email,
             'role' => $role,
             'role_label' => $cfg['label'] ?? 'Tidak Dikenal (' . $role . ')',
-            'nip' => $profil ? $profil->{$cfg['nip']} : null,
-            'nama' => $profil ? $profil->{$cfg['nama']} : null,
+            'nip' => $nipProfil,
+            'nama' => $namaProfil,
+            'tugas_lain' => array_values($this->labelTugas(array_diff(array_keys($profil), [$role]))),
             'sesuai' => $sesuai,
             'catatan' => $catatan,
         ];
@@ -1231,15 +1251,18 @@ class UserController extends Controller
             'email' => 'Email',
             'password' => 'Password',
             'nama' => 'Nama',
-            'id_kelas' => 'Kelas',
-            'id_jurusan' => 'Jurusan',
-            'kelas' => 'Kelas',
-            'kelas.*' => 'Kelas',
+            'detail.' . User::ROLE_WALIKELAS . '.id_kelas' => 'Kelas perwalian',
+            'detail.' . User::ROLE_KETUA_PROGRAM . '.id_jurusan' => 'Jurusan',
+            'detail.' . User::ROLE_GURU_BK . '.kelas' => 'Kelas binaan',
+            'detail.' . User::ROLE_GURU_BK . '.kelas.*' => 'Kelas binaan',
         ];
     }
 
     private function pesan(): array
     {
+        $wali = 'detail.' . User::ROLE_WALIKELAS . '.id_kelas';
+        $kaprog = 'detail.' . User::ROLE_KETUA_PROGRAM . '.id_jurusan';
+
         return [
             'required' => ':attribute wajib diisi.',
             'unique' => ':attribute sudah digunakan.',
@@ -1248,16 +1271,19 @@ class UserController extends Controller
             'min' => ':attribute minimal :min karakter.',
             'confirmed' => 'Konfirmasi password tidak cocok.',
             'exists' => ':attribute yang dipilih tidak valid.',
-            'id_kelas.unique' => 'Kelas ini sudah memiliki wali kelas lain.',
             'role.required' => 'Pilih tugas tambahan terlebih dahulu.',
-            'role.in' => 'Tugas tambahan yang dipilih tidak valid.',
+            'role.min' => 'Pilih minimal satu tugas tambahan.',
+            'role.*.in' => 'Tugas tambahan yang dipilih tidak valid.',
             'password.required' => 'Password wajib diisi untuk akun Super Admin.',
             'nip.regex' => 'NIP harus berupa angka 5 sampai 18 digit.',
             'username.regex' => 'Username hanya boleh huruf, angka, titik, garis bawah, dan strip (tanpa spasi).',
             'username.not_regex' => 'Username tidak boleh hanya berisi angka.',
-            'id_kelas.not_in' => 'Kelas ALUMNI tidak dapat dipilih.',
-            'kelas.*.not_in' => 'Kelas ALUMNI tidak dapat dipilih.',
-            'id_jurusan.unique' => 'Jurusan ini sudah memiliki ketua program lain.',
+            $wali . '.required' => 'Kelas perwalian wajib dipilih.',
+            $wali . '.unique' => 'Kelas ini sudah memiliki wali kelas lain.',
+            $wali . '.not_in' => 'Kelas ALUMNI tidak dapat dipilih.',
+            $kaprog . '.required' => 'Jurusan wajib dipilih untuk Ketua Program.',
+            $kaprog . '.unique' => 'Jurusan ini sudah memiliki ketua program lain.',
+            'detail.' . User::ROLE_GURU_BK . '.kelas.*.not_in' => 'Kelas ALUMNI tidak dapat dipilih.',
         ];
     }
 }

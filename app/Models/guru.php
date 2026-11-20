@@ -51,65 +51,82 @@ class Guru extends Model
         return $this->hasOne(walikelas::class, 'nip_walikelas', 'nip_guru');
     }
 
-    /** Nama jabatan guru ini, atau null kalau belum dipetakan. */
-    public function getJabatanAttribute(): ?string
+    /** Kode jabatan yang dipegang guru ini (dari relasi), mis. ['gurubk', 'walikelas']. */
+    public function getJabatanListAttribute(): array
     {
-        foreach (self::DAFTAR_JABATAN as $relasi => $label) {
-            if ($this->$relasi) {
-                return $label;
-            }
-        }
-
-        return null;
+        return array_values(array_filter(
+            array_keys(self::DAFTAR_JABATAN),
+            fn ($relasi) => (bool) $this->$relasi
+        ));
     }
 
-    /** Kode jabatan guru ini (wakasek, gurubk, kaprog, walikelas), atau null kalau belum dipetakan. */
+    /** Nama jabatan guru ini ("Guru BK, Wali Kelas"), atau null kalau belum dipetakan. */
+    public function getJabatanAttribute(): ?string
+    {
+        $label = array_map(fn ($kode) => self::DAFTAR_JABATAN[$kode], $this->jabatan_list);
+
+        return $label ? implode(', ', $label) : null;
+    }
+
+    /** Kode jabatan pertama guru ini (kompatibilitas kode lama), atau null kalau belum dipetakan. */
     public function getJabatanKodeAttribute(): ?string
     {
-        foreach (self::DAFTAR_JABATAN as $relasi => $label) {
-            if ($this->$relasi) {
-                return $relasi;
-            }
-        }
-
-        return null;
+        return $this->jabatan_list[0] ?? null;
     }
 
     /** Keterangan tambahan jabatan (kelas untuk wali kelas, jurusan untuk ketua program). */
     public function getJabatanDetailAttribute(): ?string
     {
+        $detail = [];
+
         if ($this->walikelas) {
-            return optional($this->walikelas->kelas)->nama_kelas ?: 'Tanpa Kelas';
+            $detail[] = optional($this->walikelas->kelas)->nama_kelas ?: 'Tanpa Kelas';
         }
 
-        if ($this->kaprog) {
-            return optional($this->kaprog->jurusan)->nama_jurusan;
+        if ($this->kaprog && optional($this->kaprog->jurusan)->nama_jurusan) {
+            $detail[] = $this->kaprog->jurusan->nama_jurusan;
         }
 
-        return null;
+        return $detail ? implode(' · ', $detail) : null;
+    }
+
+    /** Sumber data tiap jabatan: kode => [tabel, kolom NIP]. */
+    public const SUMBER_JABATAN = [
+        'wakasek'   => ['wakasek', 'nip_wakasek'],
+        'gurubk'    => ['guru_bk', 'nip_bk'],
+        'kaprog'    => ['ketua_program', 'nip_kaprog'],
+        'walikelas' => ['walikelas', 'nip_walikelas'],
+    ];
+
+    /** Kode semua jabatan yang dipegang NIP ini, dibaca dari tabel jabatan. */
+    public static function kodeJabatan(string $nip): array
+    {
+        $ada = [];
+
+        foreach (self::SUMBER_JABATAN as $kode => [$tabel, $kolom]) {
+            if (DB::table($tabel)->where($kolom, $nip)->exists()) {
+                $ada[] = $kode;
+            }
+        }
+
+        return $ada;
     }
 
     /**
      * Peta [nip => label jabatan] untuk semua guru yang sudah dipetakan.
-     * Dipakai dropdown supaya guru yang sudah punya jabatan ditandai dan tidak bisa dipilih ganda.
+     * Guru dengan lebih dari satu jabatan: labelnya digabung ("Guru BK, Wali Kelas"),
+     * jadi pemanggil lama yang memperlakukannya sebagai string tetap jalan.
      */
     public static function petaJabatan(): array
     {
-        $sumber = [
-            'Wakasek'       => ['wakasek', 'nip_wakasek'],
-            'Guru BK'       => ['guru_bk', 'nip_bk'],
-            'Ketua Program' => ['ketua_program', 'nip_kaprog'],
-            'Wali Kelas'    => ['walikelas', 'nip_walikelas'],
-        ];
-
         $peta = [];
 
-        foreach ($sumber as $label => [$tabel, $kolom]) {
+        foreach (self::SUMBER_JABATAN as $kode => [$tabel, $kolom]) {
             foreach (DB::table($tabel)->pluck($kolom) as $nip) {
-                $peta[(string) $nip] = $label;
+                $peta[(string) $nip][] = self::DAFTAR_JABATAN[$kode];
             }
         }
 
-        return $peta;
+        return array_map(fn ($daftar) => implode(', ', $daftar), $peta);
     }
 }
