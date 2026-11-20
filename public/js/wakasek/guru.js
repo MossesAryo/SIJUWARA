@@ -30,9 +30,16 @@ function openCreateModal() {
     openModal('modal-create');
 }
 
-/** Tampilkan isian tambahan sesuai jabatan yang dipilih di modal edit. */
+/** Tampilkan isian tambahan sesuai tugas tambahan yang dipilih di modal edit. */
 function toggleJabatanEdit() {
-    const jabatan = document.getElementById('edit_jabatan').value;
+    const pilih = document.getElementById('edit_jabatan');
+
+    // Di halaman Wakasek tugas tambahan hanya tampil (tidak ada dropdown).
+    if (!pilih) {
+        return;
+    }
+
+    const jabatan = pilih.value;
     document.getElementById('edit_blok_kelas').classList.toggle('hidden', jabatan !== 'walikelas');
     document.getElementById('edit_blok_jurusan').classList.toggle('hidden', jabatan !== 'kaprog');
     document.getElementById('edit_info_wakasek').classList.toggle('hidden', jabatan !== 'wakasek');
@@ -56,16 +63,28 @@ function openEditModal(btn) {
     inputNip.classList.toggle('bg-gray-50', terkunci);
 
     const info = document.getElementById('edit_nip_info');
-    info.textContent = `NIP tidak bisa diubah karena guru ini menjabat sebagai ${jabatan}. Hapus jabatannya dulu untuk mengubah NIP.`;
+    const bisaEditTugas = !!document.getElementById('edit_jabatan');
+    info.textContent = bisaEditTugas
+        ? `NIP tidak bisa diubah karena guru ini memiliki tugas tambahan ${jabatan}. Hapus tugas tambahannya dulu untuk mengubah NIP.`
+        : `NIP tidak bisa diubah karena guru ini memiliki tugas tambahan ${jabatan}. Hubungi Super Admin untuk mengubahnya.`;
     info.classList.toggle('hidden', !terkunci);
 
     document.getElementById('edit_nama_guru').value = btn.dataset.nama;
 
-    // Jabatan saat ini (kosong = belum punya jabatan)
-    document.getElementById('edit_jabatan').value = btn.dataset.jabatanKode || '';
-    document.getElementById('edit_id_kelas').value = btn.dataset.idKelas || '';
-    document.getElementById('edit_id_jurusan').value = btn.dataset.idJurusan || '';
-    toggleJabatanEdit();
+    // Tugas tambahan saat ini (kosong = belum punya tugas tambahan)
+    const pilihTugas = document.getElementById('edit_jabatan');
+    if (pilihTugas) {
+        pilihTugas.value = btn.dataset.jabatanKode || '';
+        document.getElementById('edit_id_kelas').value = btn.dataset.idKelas || '';
+        document.getElementById('edit_id_jurusan').value = btn.dataset.idJurusan || '';
+        toggleJabatanEdit();
+    }
+
+    // Wakasek: hanya tampilkan tugas tambahan sekarang (tidak bisa diubah)
+    const teksTugas = document.getElementById('edit_tugas_teks');
+    if (teksTugas) {
+        teksTugas.value = jabatan !== '' ? jabatan : 'Belum dipetakan';
+    }
     document.getElementById('form-edit').action = action;
     document.getElementById('edit_action').value = action;
 

@@ -16,17 +16,20 @@
         </div>
 
         <!-- Form -->
-        <form method="GET" action="{{ route('guru.index') }}" class="p-6 space-y-6">
+        <form method="GET" action="{{ $guruUrl ?? route('guru.index') }}" class="p-6 space-y-6">
+            @if (!empty($tabGuru))
+                <input type="hidden" name="tab" value="guru">
+            @endif
             {{-- Dijaga sinkron dengan kotak pencarian oleh guru.js --}}
             <input type="hidden" id="filterSearch" name="search" value="{{ request('search') }}">
 
             <div class="space-y-2">
                 <label for="filter_jabatan" class="block text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <i class="bi bi-diagram-3 text-gray-500"></i> Jabatan
+                    <i class="bi bi-diagram-3 text-gray-500"></i> {{ $labelJabatan ?? 'Tugas Tambahan' }}
                 </label>
                 <select id="filter_jabatan" name="jabatan"
                     class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
-                    <option value="">-- Semua Jabatan --</option>
+                    <option value="">-- Semua {{ $labelJabatan ?? 'Tugas Tambahan' }} --</option>
                     @foreach (\App\Models\guru::DAFTAR_JABATAN as $kode => $label)
                         <option value="{{ $kode }}" {{ request('jabatan') === $kode ? 'selected' : '' }}>
                             {{ $label }}
@@ -46,7 +49,7 @@
                     class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 focus:ring-4 focus:ring-blue-100 focus:border-blue-500">
                     <option value="nama" {{ in_array(request('sort'), ['nip', 'jabatan'], true) ? '' : 'selected' }}>Nama Guru</option>
                     <option value="nip" {{ request('sort') === 'nip' ? 'selected' : '' }}>NIP</option>
-                    <option value="jabatan" {{ request('sort') === 'jabatan' ? 'selected' : '' }}>Jabatan</option>
+                    <option value="jabatan" {{ request('sort') === 'jabatan' ? 'selected' : '' }}>{{ $labelJabatan ?? 'Tugas Tambahan' }}</option>
                 </select>
             </div>
 
@@ -66,7 +69,7 @@
                     class="px-6 py-3 rounded-xl border-2 border-gray-200 text-gray-600 hover:bg-gray-50">
                     <i class="bi bi-x-circle"></i> Batal
                 </button>
-                <button type="button" onclick="window.location.href='{{ route('guru.index') }}'"
+                <button type="button" onclick="window.location.href='{{ $guruUrlReset ?? route('guru.index') }}'"
                     class="px-6 py-3 rounded-xl border-2 border-orange-200 text-orange-600 hover:bg-orange-50">
                     <i class="bi bi-arrow-counterclockwise"></i> Reset
                 </button>

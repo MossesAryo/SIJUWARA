@@ -15,7 +15,7 @@
             <i class="bi bi-arrow-left"></i> Kembali ke Manajemen User
         </a>
         <h2 class="mt-2 text-lg font-bold text-gray-900">Tambah Akun</h2>
-        <p class="text-sm text-gray-400">Pilih role, lalu isi data akun. Pengguna login memakai NIP (Super Admin memakai username) dan password.</p>
+        <p class="text-sm text-gray-400">Pilih tugas tambahan, lalu isi data akun. Pengguna login memakai NIP (Super Admin memakai username) dan password.</p>
     </div>
 
     <div class="max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
@@ -25,15 +25,15 @@
             <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 {{-- Role --}}
                 <div class="sm:col-span-2">
-                    <label for="role" class="mb-1 block text-sm font-medium text-gray-700">Role <span class="text-red-500">*</span></label>
+                    <label for="role" class="mb-1 block text-sm font-medium text-gray-700">Tugas Tambahan <span class="text-red-500">*</span></label>
                     <select id="role" name="role" required
                         class="{{ $input }} {{ $errors->has('role') ? 'border-red-400' : 'border-gray-300' }}">
-                        <option value="">-- Pilih role --</option>
+                        <option value="">-- Pilih tugas tambahan --</option>
                         @foreach ($daftarRole as $r)
                             <option value="{{ $r['kode'] }}" @selected((string) $r['kode'] === $roleTerpilih)>{{ $r['label'] }}</option>
                         @endforeach
                     </select>
-                    <p class="mt-1 text-xs text-gray-400" id="roleHint">Pilih role untuk menampilkan isian yang sesuai.</p>
+                    <p class="mt-1 text-xs text-gray-400" id="roleHint">Pilih tugas tambahan untuk menampilkan isian yang sesuai.</p>
                     @error('role') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
@@ -186,7 +186,7 @@
                 '5': 'Super Admin: tanpa NIP dan tanpa profil. Login memakai username pada kolom NIP, password wajib diisi.'
             };
 
-            // Tampilkan hanya bagian sesuai role; bagian tersembunyi dinonaktifkan
+            // Tampilkan hanya bagian sesuai tugas tambahan; bagian tersembunyi dinonaktifkan
             // supaya tidak ikut terkirim dan tidak memicu validasi "required".
             function tampilkanBagian() {
                 const nilai = roleSelect.value;
@@ -199,7 +199,7 @@
                     });
                 });
 
-                hint.textContent = keteranganRole[nilai] || 'Pilih role untuk menampilkan isian yang sesuai.';
+                hint.textContent = keteranganRole[nilai] || 'Pilih tugas tambahan untuk menampilkan isian yang sesuai.';
 
                 const superAdmin = nilai === '5';
                 passwordInput.required = superAdmin;
