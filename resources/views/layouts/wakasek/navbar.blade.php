@@ -9,6 +9,15 @@
         <!-- Right: User Profile -->
         <div class="flex items-center gap-3">
 
+            @if (auth()->user()->punyaBanyakTugas())
+                <!-- Pindah tugas aktif tanpa login ulang -->
+                <a href="{{ route('pilih_tugas') }}" title="Ganti tugas aktif"
+                    class="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50 hover:border-[#56A6E8] hover:text-[#3d8fd4]">
+                    <i class="bi bi-arrow-left-right"></i>
+                    <span class="hidden sm:inline">Ganti Tugas</span>
+                </a>
+            @endif
+
             <!-- Divider -->
             <div class="w-px h-6 bg-gray-200"></div>
 
