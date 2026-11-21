@@ -4,9 +4,9 @@
 
 @section('content')
     @php
-        $labelRole = $cfg['label'] ?? 'Tidak Dikenal (' . $role . ')';
-        $nipProfil = ($profil && $cfg) ? $profil->{$cfg['nip']} : null;
-        $namaProfil = ($profil && $cfg) ? $profil->{$cfg['nama']} : null;
+        // Semua variabel ini dikirim dari UserController@konfirmasiHapus
+        $labelRole = implode(', ', $labelTugas);
+        $punyaBanyakTugas = count($labelTugas) > 1;
         $adaDampak = collect($dampak)->sum() > 0;
     @endphp
 
@@ -50,11 +50,11 @@
             </dl>
         </div>
 
-        @if (!empty($tugasLain))
+        @if ($punyaBanyakTugas)
             <div class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
                 <i class="bi bi-info-circle"></i>
-                Orang ini juga memegang <strong>{{ implode(', ', $tugasLain) }}</strong>. Akun dan data tugas tambahan tersebut
-                <strong>tidak ikut terhapus</strong>; hanya akun {{ $labelRole }} ini yang dihapus.
+                Akun ini memegang beberapa tugas (<strong>{{ $labelRole }}</strong>). Menghapus akun akan
+                <strong>menghapus semua tugas tersebut sekaligus</strong>.
             </div>
         @endif
 
@@ -70,7 +70,7 @@
             </ul>
             @if ($adaDampak)
                 <p class="mt-3 text-xs text-red-700">
-                    Riwayat di atas terhapus permanen{{ $role === 1 ? ', termasuk file bukti pembinaan' : '' }}. Poin siswa
+                    Riwayat di atas terhapus permanen{{ !empty($adaWakasek) ? ', termasuk file bukti pembinaan' : '' }}. Poin siswa
                     yang sudah tersimpan tidak ikut berubah, tetapi catatan penilaian asalnya hilang.
                 </p>
             @endif
